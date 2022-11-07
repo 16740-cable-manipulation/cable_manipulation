@@ -11,7 +11,7 @@ if __name__ == "__main__":
     realsense.close()
     new = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
     output = Image.fromarray(new, "RGB")
-    output.save("cable_manipulation/cableImages/testImage.jpg")
+    output.save("cable_manipulation/cableImages/cableRBY4.jpg")
     plt.imshow(new)
     plt.show()
     # dp = depth.reshape((-1, 3))

@@ -27,30 +27,25 @@ y_low = normalizeHSV(45,40,45)
 y_high = normalizeHSV(55,85,100)
 
 
-#hsv threshold 
-#RED - p good
+
 def segmentFirstColor(input_image,color):
     #input_image needs to be in hsv
     #color is a string 
     if color == "red":
-        mask_low = normalizeHSV(0,60,30)
-        mask_high = normalizeHSV(15,80,60)
+        mask_low = r_low
+        mask_high = r_high
     elif color =="green":
         #GREEN - p bad
-        mask_low = normalizeHSV(165,75,20)
-        mask_high = normalizeHSV(175,100,40)
+        mask_low = g_low
+        mask_high = g_high
     elif color =="blue":
         #BLUE
-        mask_low = normalizeHSV(220,35,35)
-        mask_high = normalizeHSV(232,55,55)
+        mask_low = b_low
+        mask_high = b_high
     elif color =="yellow":
         #yellow
-        mask_low = normalizeHSV(45,40,45)
-        mask_high = normalizeHSV(55,85,100)
-
-
-
-
+        mask_low = y_low
+        mask_high = y_high
 
     mask = cv2.inRange(input_image, mask_low, mask_high)
     mask_blur = cv2.GaussianBlur(mask, (7,7), 0)
@@ -60,61 +55,57 @@ def segmentFirstColor(input_image,color):
 def segmentAllCableExceptOne(input_image,targetColor):
     #input_image needs to be in hsv
     #targetColor is a string that describes the color cable we want to move
+    mask_r = cv2.inRange(input_image, r_low, r_high)
+    mask_b = cv2.inRange(input_image, b_low, b_high)
+    mask_g = cv2.inRange(input_image, g_low, g_high)
+    mask_y = cv2.inRange(input_image, y_low, y_high)
 
-
-    if targetColor == "red":
-        low1 = cv2.bitwise_or(g_low,b_low)
-        low2 = cv2.bitwise_or(low1,y_low)
-        high1 = cv2.bitwise_or(g_high,b_high)
-        high2 = cv2.bitwise_or(high1,y_high)
-
-        mask = cv2.inRange(input_image, low2, high2)
-
+    if targetColor == "red":    
+        tmp1 = cv2.bitwise_or(mask_b,mask_g)
+        tmp2 = cv2.bitwise_or(tmp1,mask_y)
+        
     elif targetColor == "blue": 
-        low1 = cv2.bitwise_or(g_low,r_low)
-        low2 = cv2.bitwise_or(low1,y_low)
-        high1 = cv2.bitwise_or(g_high,r_high)
-        high2 = cv2.bitwise_or(high1,y_high)
+        tmp1 = cv2.bitwise_or(mask_r,mask_g)
+        tmp2 = cv2.bitwise_or(tmp1,mask_y)
+
     elif targetColor == "yellow": 
-        low1 = cv2.bitwise_or(g_low,b_low)
-        low2 = cv2.bitwise_or(low1,r_low)
-        high1 = cv2.bitwise_or(g_high,b_high)
-        high2 = cv2.bitwise_or(high1,r_high)
+        tmp1 = cv2.bitwise_or(mask_b,mask_g)
+        tmp2 = cv2.bitwise_or(tmp1,mask_r)
     elif targetColor == "green": 
-        low1 = cv2.bitwise_or(r_low,b_low)
-        low2 = cv2.bitwise_or(low1,y_low)
-        high1 = cv2.bitwise_or(r_high,b_high)
-        high2 = cv2.bitwise_or(high1,y_high)
+        tmp1 = cv2.bitwise_or(mask_b,mask_r)
+        tmp2 = cv2.bitwise_or(tmp1,mask_y)
 
 
     
-    mask_blur = cv2.GaussianBlur(mask, (7,7), 0)
+    mask_blur = cv2.GaussianBlur(tmp2, (7,7), 0)
     return mask_blur
 
-if __name__ =="__main__":
-    img = cv2.imread("cableImages/cableBundle.jpg")
-    img = cv2.resize(img,(800,640))
-    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+# if __name__ =="__main__":
+#read, resize and convert image to rgb
+img = cv2.imread("cable_manipulation/cableImages/cableBundle2.jpg")
+img = cv2.resize(img,(800,640))
+img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
-    blur_image = cv2.GaussianBlur(img, (3,3), 0)
-    plt.imshow(blur_image)
-    plt.show()
+#blur and convert to hsv image 
+blur_image = cv2.GaussianBlur(img, (3,3), 0)
+plt.imshow(blur_image)
+plt.show()
+img_hsv = cv2.cvtColor(blur_image,cv2.COLOR_RGB2HSV)
 
-    img_hsv = cv2.cvtColor(blur_image,cv2.COLOR_RGB2HSV)
+targetColor = "blue"
+mask_oneColor = segmentFirstColor(img_hsv,targetColor)
+result_image = cv2.bitwise_and(img,img, mask=mask_oneColor)
+plt.subplot(2, 2, 1)
+plt.imshow(mask_oneColor, cmap="gray")
+plt.subplot(2, 2, 2)
+plt.imshow(result_image)
 
-    mask_oneColor = segmentFirstColor(img_hsv,"red")
-    result = cv2.bitwise_and(img,img, mask=mask_oneColor)
-    plt.subplot(2, 2, 1)
-    plt.imshow(mask_oneColor, cmap="gray")
-    plt.subplot(2, 2, 2)
-    plt.imshow(result)
-
-    mask_allOther = segmentAllCableExceptOne(img_hsv,"red")
-    result = cv2.bitwise_and(img,img, mask=mask_allOther)
-    plt.subplot(2, 2, 3)
-    plt.imshow(mask_allOther, cmap="gray")
-    plt.subplot(2, 2, 4)
-    plt.imshow(result)
+mask_allOther = segmentAllCableExceptOne(img_hsv,targetColor)
+result_image2 = cv2.bitwise_and(img,img, mask=mask_allOther)
+plt.subplot(2, 2, 3)
+plt.imshow(mask_allOther, cmap="gray")
+plt.subplot(2, 2, 4)
+plt.imshow(result_image2)
 
 
-    plt.show()
+plt.show()

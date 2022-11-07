@@ -27,12 +27,29 @@ class Realsense:
         self.pc = rs.pointcloud()
         self.frame_buffer = []
         self.bridge = CvBridge()
+        self.K = None
+        self.D = None
+        self.intr = None  # depth intrinsic
 
         self.setSyncMode()
         self.start()
 
     def start(self):
-        self.pipeline.start(self.cfg)
+        profile = self.pipeline.start(self.cfg)
+        self.intr = (
+            profile.get_stream(rs.stream.depth)
+            .as_video_stream_profile()
+            .get_intrinsics()
+        )
+        print(self.intr)
+        self.K = np.array(
+            [
+                [self.intr.fx, 0.0, self.intr.ppx],
+                [0.0, self.intr.fy, self.intr.ppy],
+                [0.0, 0.0, 1],
+            ]
+        )
+        self.D = np.array(self.intr.coeffs)
         print("Realsense ready!")
 
     def setSyncMode(self):
@@ -60,9 +77,23 @@ class Realsense:
 
         color_image = np.asanyarray(color_frame.get_data())
         color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
+        h, w = color_image.shape[0:2]
+        depth_image = np.asanyarray(aligned_depth_frame.get_data())
+
+        # TODO
+        depth_map = np.zeros((h, w, 3), dtype=np.float)
+        for i in range(h):
+            for j in range(w):
+                depth = depth_image[i, j]
+                if depth > 0.0:
+                    point = rs.rs2_deproject_pixel_to_point(
+                        self.intr, [j, i], depth
+                    )
+                    depth_map[i, j, :] = point.flatten()
+        return depth_map, color_image
+
         self.pc.map_to(color_frame)
         points = self.pc.calculate(aligned_depth_frame)
-        h, w = color_image.shape[0:2]
         depth_map = self.to_depth_map(points, w, h)
         return depth_map, color_image
 

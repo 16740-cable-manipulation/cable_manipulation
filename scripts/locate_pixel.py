@@ -17,12 +17,12 @@ class locatePixel():
         self.maskH = np.shape(self.mask_targetColor)[1]
         self.result = np.zeros((self.maskW,self.maskH))
     
-    def isBoundaryEmptyOfOtherCables(self,targetColorMask,allOtherCableMask,cur_row,cur_col):
+    def isBoundaryEmptyOfOtherCables(self,allOtherCableMask,cur_row,cur_col):
         for row in range(self.boundary_size):
             for col in range(self.boundary_size):
-                if targetColorMask[cur_row+row,cur_col+col] !=0:
+                
                     if allOtherCableMask[cur_row+row,cur_col+col] !=0:
-                        print("All cable appeared")
+                        # print("All cable appeared")
                         return False
                 #     else:
                 #         print("only target cable appeared")
@@ -37,23 +37,19 @@ class locatePixel():
         return True
     
     def iterateImage(self):
-        for r in range(0,self.maskW-self.boundary_size,self.boundary_size):
-            for c in range(0,self.maskH-self.boundary_size,self.boundary_size):
-                if self.isBoundaryEmptyOfOtherCables(self.mask_targetColor,self.mask_restCable,r,c):
-                    #if targetCable is found, ie targetCable is not in boundaryBox
-            
-                        #and if this area is free of other cables
-                        # for box_w in range(self.boundary_size):
-                        #     for box_h in range(self.boundary_size):
-                                # self.result[r+box_w,c+box_h] = 255
-                        
-                        # print("AAAA itearate through one boundary box",r,c)
-                        self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 255
-                else:
-                    self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 0
+        for r in range(0,self.maskW-self.boundary_size):
+            for c in range(0,self.maskH-self.boundary_size):
+                if self.mask_targetColor[r,c] != 0 :
+
+                    if self.isBoundaryEmptyOfOtherCables(self.mask_restCable,r,c):
+
+                        self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 1
+                    else:
+                        self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 0
                     # print("BBBB itearate through one boundary box",r,c)
 
-
+        # final = cv2.bitwise_or(self.mask_targetColor,self.mask_targetColor,mask = self.result)
+        
         return self.result
 
 

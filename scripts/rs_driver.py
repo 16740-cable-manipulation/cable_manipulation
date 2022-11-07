@@ -30,12 +30,15 @@ class Realsense:
         self.K = None
         self.D = None
         self.intr = None  # depth intrinsic
+        self.depth_scale = 1.0
 
         self.setSyncMode()
         self.start()
 
     def start(self):
         profile = self.pipeline.start(self.cfg)
+        depth_sensor = profile.get_device().first_depth_sensor()
+        self.depth_scale = depth_sensor.get_depth_scale()
         self.intr = (
             profile.get_stream(rs.stream.depth)
             .as_video_stream_profile()
@@ -78,24 +81,19 @@ class Realsense:
         color_image = np.asanyarray(color_frame.get_data())
         color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
         h, w = color_image.shape[0:2]
-        depth_image = np.asanyarray(aligned_depth_frame.get_data())
+        depth_image = (
+            np.asanyarray(aligned_depth_frame.get_data()) * self.depth_scale
+        )
+        depth_image = np.where(depth_image > 0.0, depth_image, 0.0)
+        return depth_image, color_image
 
-        # TODO
-        depth_map = np.zeros((h, w, 3), dtype=np.float)
-        for i in range(h):
-            for j in range(w):
-                depth = depth_image[i, j]
-                if depth > 0.0:
-                    point = rs.rs2_deproject_pixel_to_point(
-                        self.intr, [j, i], depth
-                    )
-                    depth_map[i, j, :] = point.flatten()
-        return depth_map, color_image
-
-        self.pc.map_to(color_frame)
-        points = self.pc.calculate(aligned_depth_frame)
-        depth_map = self.to_depth_map(points, w, h)
-        return depth_map, color_image
+    def deproject_pixel(self, depth_image, px, py):
+        depth = depth_image[py, px]
+        pt = np.zeros(3)
+        if depth > 0.0:
+            point = rs.rs2_deproject_pixel_to_point(self.intr, [px, py], depth)
+            pt = np.array([point[0], point[1], point[2]], dtype=np.float)
+        return pt
 
     def to_depth_map(self, rs_points, w, h):
         v, t = rs_points.get_vertices(), rs_points.get_texture_coordinates()

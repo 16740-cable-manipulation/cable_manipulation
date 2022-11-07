@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from locate_pixel_tmp import locatePixel
+from locate_pixel import locatePixel
 
 
 
@@ -80,61 +80,53 @@ def segmentAllCableExceptOne(input_image,targetColor):
     mask_blur = cv2.GaussianBlur(tmp2, (7,7), 0)
     return mask_blur
 
-if __name__ =="__main__":
-    #read, resize and convert image to rgb
-    img = cv2.imread("cable_manipulation/cableImages/cableBundle.jpg")
+def processImage(inputImage,targetColor,visualize = False):
+    img = cv2.imread(inputImage)
     img = cv2.resize(img,(800,640))
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
-    #blur and convert to hsv image 
     blur_image = cv2.GaussianBlur(img, (3,3), 0)
-
-    #UNCOMMENT TO SHOW BLUURED IMAGE
-    # plt.imshow(blur_image)
-    # plt.show()
-
-
     img_hsv = cv2.cvtColor(blur_image,cv2.COLOR_RGB2HSV)
-
-    targetColor = "red"
     mask_oneColor = segmentFirstColor(img_hsv,targetColor)
-    print(np.shape(mask_oneColor)[0],np.shape(mask_oneColor)[1])
+
     result_image = cv2.bitwise_and(img,img, mask=mask_oneColor)
-    fig = plt.figure()
-    ax1 = fig.add_subplot(321)
-    ax1.set_title('Target Cable Mask',fontdict = {'fontsize':8} )
-    plt.imshow(mask_oneColor, cmap="gray")
-    ax2 = fig.add_subplot(322)
-    ax2.set_title('Target Cable',fontdict = {'fontsize':8} )
-
-    plt.imshow(result_image)
-
+    
     mask_allOther = segmentAllCableExceptOne(img_hsv,targetColor)
-    print(np.shape(mask_allOther)[0],np.shape(mask_allOther)[1])
+    # print(np.shape(mask_allOther)[0],np.shape(mask_allOther)[1])
 
     result_image2 = cv2.bitwise_and(img,img, mask=mask_allOther)
-    ax3 = fig.add_subplot(323)
-    ax3.set_title('Rest Cables Mask',fontdict = {'fontsize':8} )
-   
-    plt.imshow(mask_allOther, cmap="gray")
-    ax4 = fig.add_subplot(324)
-    ax4.set_title('Rest Cables',fontdict = {'fontsize':8} )
-    # plt.subplot(3, 2, 1)
-    plt.imshow(result_image2)
+    
 
 
-    LP = locatePixel(mask_oneColor,mask_allOther,70)
+    LP = locatePixel(mask_oneColor,mask_allOther,50)
     boundaryBox = LP.iterateImage()
-    # plt.subplot(3, 2, 5)
-    ax5 = fig.add_subplot(325)
-    plt.imshow(boundaryBox, cmap="gray")
-    ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
+    vector = []
 
-    ax1.set_axis_off()
-    ax2.set_axis_off()
-    ax3.set_axis_off()
-    ax4.set_axis_off()
-    ax5.set_axis_off()
+    if visualize == True:
+        fig = plt.figure()
+        ax1 = fig.add_subplot(321)
+        ax1.set_title('Target Cable Mask',fontdict = {'fontsize':8} )
+        plt.imshow(mask_oneColor, cmap="gray")
+        ax2 = fig.add_subplot(322)
+        ax2.set_title('Target Cable',fontdict = {'fontsize':8} )
+        plt.imshow(result_image)
+        ax3 = fig.add_subplot(323)
+        ax3.set_title('Rest Cables Mask',fontdict = {'fontsize':8} )
+        plt.imshow(mask_allOther, cmap="gray")
+        ax4 = fig.add_subplot(324)
+        ax4.set_title('Rest Cables',fontdict = {'fontsize':8} )
+        plt.imshow(result_image2)
+        ax5 = fig.add_subplot(325)
+        ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
+        plt.imshow(boundaryBox, cmap="gray")
+        
+        ax1.set_axis_off()
+        ax2.set_axis_off()
+        ax3.set_axis_off()
+        ax4.set_axis_off()
+        ax5.set_axis_off()
+        plt.show()
+
+    return (boundaryBox,vector)
 
 
-    plt.show()

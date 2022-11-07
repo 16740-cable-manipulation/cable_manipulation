@@ -17,23 +17,43 @@ class locatePixel():
         self.maskH = np.shape(self.mask_targetColor)[1]
         self.result = np.zeros((self.maskW,self.maskH))
     
-    def isBoundaryEmpty(self,given_mask,cur_row,cur_col):
+    def isBoundaryEmptyOfOtherCables(self,targetColorMask,allOtherCableMask,cur_row,cur_col):
         for row in range(self.boundary_size):
             for col in range(self.boundary_size):
-                if given_mask[cur_row+row,cur_col+col] == 0:
-                    return True
-                else:
-                    return False
+                if targetColorMask[cur_row+row,cur_col+col] !=0:
+                    if allOtherCableMask[cur_row+row,cur_col+col] !=0:
+                        print("All cable appeared")
+                        return False
+                #     else:
+                #         print("only target cable appeared")
+                #         pass
+                # else:
+                #     print("no target cable appeared")
+                #     pass
+                
+                    
+            
+        
+        return True
     
     def iterateImage(self):
-        for r in range(self.maskW-self.boundary_size):
-            for c in range(self.maskH-self.boundary_size):
-                if not self.isBoundaryEmpty(self.mask_targetColor,r,c):
+        for r in range(0,self.maskW-self.boundary_size,self.boundary_size):
+            for c in range(0,self.maskH-self.boundary_size,self.boundary_size):
+                if self.isBoundaryEmptyOfOtherCables(self.mask_targetColor,self.mask_restCable,r,c):
                     #if targetCable is found, ie targetCable is not in boundaryBox
-                    if self.isBoundaryEmpty(self.mask_restCable,r,c):
+            
                         #and if this area is free of other cables
-                        self.result[r,c] = 255
-        
+                        # for box_w in range(self.boundary_size):
+                        #     for box_h in range(self.boundary_size):
+                                # self.result[r+box_w,c+box_h] = 255
+                        
+                        # print("AAAA itearate through one boundary box",r,c)
+                        self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 255
+                else:
+                    self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 0
+                    # print("BBBB itearate through one boundary box",r,c)
+
+
         return self.result
 
 

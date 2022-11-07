@@ -88,32 +88,53 @@ if __name__ =="__main__":
 
     #blur and convert to hsv image 
     blur_image = cv2.GaussianBlur(img, (3,3), 0)
-    plt.imshow(blur_image)
-    plt.show()
+
+    #UNCOMMENT TO SHOW BLUURED IMAGE
+    # plt.imshow(blur_image)
+    # plt.show()
+
+
     img_hsv = cv2.cvtColor(blur_image,cv2.COLOR_RGB2HSV)
 
     targetColor = "red"
     mask_oneColor = segmentFirstColor(img_hsv,targetColor)
     print(np.shape(mask_oneColor)[0],np.shape(mask_oneColor)[1])
     result_image = cv2.bitwise_and(img,img, mask=mask_oneColor)
-    plt.subplot(3, 2, 1)
+    fig = plt.figure()
+    ax1 = fig.add_subplot(321)
+    ax1.set_title('Target Cable Mask',fontdict = {'fontsize':8} )
     plt.imshow(mask_oneColor, cmap="gray")
-    plt.subplot(3, 2, 2)
+    ax2 = fig.add_subplot(322)
+    ax2.set_title('Target Cable',fontdict = {'fontsize':8} )
+
     plt.imshow(result_image)
 
     mask_allOther = segmentAllCableExceptOne(img_hsv,targetColor)
     print(np.shape(mask_allOther)[0],np.shape(mask_allOther)[1])
 
     result_image2 = cv2.bitwise_and(img,img, mask=mask_allOther)
-    plt.subplot(3, 2, 3)
+    ax3 = fig.add_subplot(323)
+    ax3.set_title('Rest Cables Mask',fontdict = {'fontsize':8} )
+   
     plt.imshow(mask_allOther, cmap="gray")
-    plt.subplot(3, 2, 4)
+    ax4 = fig.add_subplot(324)
+    ax4.set_title('Rest Cables',fontdict = {'fontsize':8} )
+    # plt.subplot(3, 2, 1)
     plt.imshow(result_image2)
 
 
-    LP = locatePixel(mask_oneColor,mask_allOther,70)
+    LP = locatePixel(mask_oneColor,mask_allOther,10)
     boundaryBox = LP.iterateImage()
-    plt.subplot(3, 2, 5)
+    # plt.subplot(3, 2, 5)
+    ax5 = fig.add_subplot(325)
     plt.imshow(boundaryBox, cmap="gray")
+    ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
+
+    ax1.set_axis_off()
+    ax2.set_axis_off()
+    ax3.set_axis_off()
+    ax4.set_axis_off()
+    ax5.set_axis_off()
+
 
     plt.show()

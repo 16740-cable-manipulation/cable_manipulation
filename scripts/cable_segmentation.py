@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from locate_pixel_tmp import locatePixel
+from locate_pixel import locatePixel
 
 
 
@@ -90,46 +90,44 @@ def processImage(image,targetColor):
     mask_oneColor = segmentFirstColor(img_hsv,targetColor)
 
     result_image = cv2.bitwise_and(img,img, mask=mask_oneColor)
+    
+    mask_allOther = segmentAllCableExceptOne(img_hsv,targetColor)
+    # print(np.shape(mask_allOther)[0],np.shape(mask_allOther)[1])
+
+    result_image2 = cv2.bitwise_and(img,img, mask=mask_allOther)
+    
+
+
+    LP = locatePixel(mask_oneColor,mask_allOther,50)
+    boundaryBox = LP.iterateImage()
+    vector = []
+
+    #comment if do not wanna see images displayed
     fig = plt.figure()
     ax1 = fig.add_subplot(321)
     ax1.set_title('Target Cable Mask',fontdict = {'fontsize':8} )
     plt.imshow(mask_oneColor, cmap="gray")
     ax2 = fig.add_subplot(322)
     ax2.set_title('Target Cable',fontdict = {'fontsize':8} )
-
     plt.imshow(result_image)
-
-    mask_allOther = segmentAllCableExceptOne(img_hsv,targetColor)
-    # print(np.shape(mask_allOther)[0],np.shape(mask_allOther)[1])
-
-    result_image2 = cv2.bitwise_and(img,img, mask=mask_allOther)
     ax3 = fig.add_subplot(323)
     ax3.set_title('Rest Cables Mask',fontdict = {'fontsize':8} )
-   
     plt.imshow(mask_allOther, cmap="gray")
     ax4 = fig.add_subplot(324)
     ax4.set_title('Rest Cables',fontdict = {'fontsize':8} )
-    # plt.subplot(3, 2, 1)
     plt.imshow(result_image2)
-
-
-    LP = locatePixel(mask_oneColor,mask_allOther,50)
-    boundaryBox = LP.iterateImage()
-    # plt.subplot(3, 2, 5)
     ax5 = fig.add_subplot(325)
-    plt.imshow(boundaryBox, cmap="gray")
     ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
-
+    plt.imshow(boundaryBox, cmap="gray")
+    
     ax1.set_axis_off()
     ax2.set_axis_off()
     ax3.set_axis_off()
     ax4.set_axis_off()
     ax5.set_axis_off()
-
-
     plt.show()
-    
 
+    return (boundaryBox,vector)
 
 
 

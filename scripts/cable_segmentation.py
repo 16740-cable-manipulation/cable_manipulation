@@ -81,9 +81,8 @@ def segmentAllCableExceptOne(input_image,targetColor):
     return mask_blur
 
 def processImage(inputImage,targetColor,visualize = False):
-    img = cv2.imread(inputImage)
-    img = cv2.resize(img,(800,640))
-    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+
+    img = cv2.cvtColor(inputImage,cv2.COLOR_BGR2RGB)
 
     blur_image = cv2.GaussianBlur(img, (3,3), 0)
     img_hsv = cv2.cvtColor(blur_image,cv2.COLOR_RGB2HSV)
@@ -98,7 +97,7 @@ def processImage(inputImage,targetColor,visualize = False):
     
 
 
-    LP = locatePixel(mask_oneColor,mask_allOther,50)
+    LP = locatePixel(mask_oneColor,mask_allOther,55)
     boundaryBox = LP.iterateImage()
     vector = []
 

@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-
+from locate_pixel import locatePixel
 
 
 
@@ -80,32 +80,40 @@ def segmentAllCableExceptOne(input_image,targetColor):
     mask_blur = cv2.GaussianBlur(tmp2, (7,7), 0)
     return mask_blur
 
-# if __name__ =="__main__":
-#read, resize and convert image to rgb
-img = cv2.imread("cable_manipulation/cableImages/cableBundle2.jpg")
-img = cv2.resize(img,(800,640))
-img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+if __name__ =="__main__":
+    #read, resize and convert image to rgb
+    img = cv2.imread("cable_manipulation/cableImages/cableBundle.jpg")
+    img = cv2.resize(img,(800,640))
+    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
-#blur and convert to hsv image 
-blur_image = cv2.GaussianBlur(img, (3,3), 0)
-plt.imshow(blur_image)
-plt.show()
-img_hsv = cv2.cvtColor(blur_image,cv2.COLOR_RGB2HSV)
+    #blur and convert to hsv image 
+    blur_image = cv2.GaussianBlur(img, (3,3), 0)
+    plt.imshow(blur_image)
+    plt.show()
+    img_hsv = cv2.cvtColor(blur_image,cv2.COLOR_RGB2HSV)
 
-targetColor = "blue"
-mask_oneColor = segmentFirstColor(img_hsv,targetColor)
-result_image = cv2.bitwise_and(img,img, mask=mask_oneColor)
-plt.subplot(2, 2, 1)
-plt.imshow(mask_oneColor, cmap="gray")
-plt.subplot(2, 2, 2)
-plt.imshow(result_image)
+    targetColor = "red"
+    mask_oneColor = segmentFirstColor(img_hsv,targetColor)
+    print(np.shape(mask_oneColor)[0],np.shape(mask_oneColor)[1])
+    result_image = cv2.bitwise_and(img,img, mask=mask_oneColor)
+    plt.subplot(3, 2, 1)
+    plt.imshow(mask_oneColor, cmap="gray")
+    plt.subplot(3, 2, 2)
+    plt.imshow(result_image)
 
-mask_allOther = segmentAllCableExceptOne(img_hsv,targetColor)
-result_image2 = cv2.bitwise_and(img,img, mask=mask_allOther)
-plt.subplot(2, 2, 3)
-plt.imshow(mask_allOther, cmap="gray")
-plt.subplot(2, 2, 4)
-plt.imshow(result_image2)
+    mask_allOther = segmentAllCableExceptOne(img_hsv,targetColor)
+    print(np.shape(mask_allOther)[0],np.shape(mask_allOther)[1])
+
+    result_image2 = cv2.bitwise_and(img,img, mask=mask_allOther)
+    plt.subplot(3, 2, 3)
+    plt.imshow(mask_allOther, cmap="gray")
+    plt.subplot(3, 2, 4)
+    plt.imshow(result_image2)
 
 
-plt.show()
+    LP = locatePixel(mask_oneColor,mask_allOther,70)
+    boundaryBox = LP.iterateImage()
+    plt.subplot(3, 2, 5)
+    plt.imshow(boundaryBox, cmap="gray")
+
+    plt.show()

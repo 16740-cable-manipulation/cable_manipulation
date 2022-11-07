@@ -59,6 +59,7 @@ class Realsense:
             return
 
         color_image = np.asanyarray(color_frame.get_data())
+        color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
         self.pc.map_to(color_frame)
         points = self.pc.calculate(aligned_depth_frame)
         h, w = color_image.shape[0:2]

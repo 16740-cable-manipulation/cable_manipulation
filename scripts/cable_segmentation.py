@@ -80,8 +80,8 @@ def segmentAllCableExceptOne(input_image,targetColor):
     mask_blur = cv2.GaussianBlur(tmp2, (7,7), 0)
     return mask_blur
 
-def processImage(image,targetColor):
-    img = image
+def processImage(inputImage,targetColor,visualize = False):
+    img = cv2.imread(inputImage)
     img = cv2.resize(img,(800,640))
     img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
 
@@ -102,32 +102,31 @@ def processImage(image,targetColor):
     boundaryBox = LP.iterateImage()
     vector = []
 
-    #comment if do not wanna see images displayed
-    fig = plt.figure()
-    ax1 = fig.add_subplot(321)
-    ax1.set_title('Target Cable Mask',fontdict = {'fontsize':8} )
-    plt.imshow(mask_oneColor, cmap="gray")
-    ax2 = fig.add_subplot(322)
-    ax2.set_title('Target Cable',fontdict = {'fontsize':8} )
-    plt.imshow(result_image)
-    ax3 = fig.add_subplot(323)
-    ax3.set_title('Rest Cables Mask',fontdict = {'fontsize':8} )
-    plt.imshow(mask_allOther, cmap="gray")
-    ax4 = fig.add_subplot(324)
-    ax4.set_title('Rest Cables',fontdict = {'fontsize':8} )
-    plt.imshow(result_image2)
-    ax5 = fig.add_subplot(325)
-    ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
-    plt.imshow(boundaryBox, cmap="gray")
-    
-    ax1.set_axis_off()
-    ax2.set_axis_off()
-    ax3.set_axis_off()
-    ax4.set_axis_off()
-    ax5.set_axis_off()
-    plt.show()
+    if visualize == True:
+        fig = plt.figure()
+        ax1 = fig.add_subplot(321)
+        ax1.set_title('Target Cable Mask',fontdict = {'fontsize':8} )
+        plt.imshow(mask_oneColor, cmap="gray")
+        ax2 = fig.add_subplot(322)
+        ax2.set_title('Target Cable',fontdict = {'fontsize':8} )
+        plt.imshow(result_image)
+        ax3 = fig.add_subplot(323)
+        ax3.set_title('Rest Cables Mask',fontdict = {'fontsize':8} )
+        plt.imshow(mask_allOther, cmap="gray")
+        ax4 = fig.add_subplot(324)
+        ax4.set_title('Rest Cables',fontdict = {'fontsize':8} )
+        plt.imshow(result_image2)
+        ax5 = fig.add_subplot(325)
+        ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
+        plt.imshow(boundaryBox, cmap="gray")
+        
+        ax1.set_axis_off()
+        ax2.set_axis_off()
+        ax3.set_axis_off()
+        ax4.set_axis_off()
+        ax5.set_axis_off()
+        plt.show()
 
     return (boundaryBox,vector)
-
 
 

@@ -43,7 +43,7 @@ class locatePixel():
 
                     if self.isBoundaryEmptyOfOtherCables(self.mask_restCable,r,c):
 
-                        self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 1
+                        self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 255
                     else:
                         self.result[r:r+self.boundary_size,c:c+self.boundary_size] = 0
                     # print("BBBB itearate through one boundary box",r,c)

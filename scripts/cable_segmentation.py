@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from locate_pixel import locatePixel
+from locate_pixel_tmp import locatePixel
 
 
 
@@ -123,7 +123,7 @@ if __name__ =="__main__":
     plt.imshow(result_image2)
 
 
-    LP = locatePixel(mask_oneColor,mask_allOther,10)
+    LP = locatePixel(mask_oneColor,mask_allOther,70)
     boundaryBox = LP.iterateImage()
     # plt.subplot(3, 2, 5)
     ax5 = fig.add_subplot(325)

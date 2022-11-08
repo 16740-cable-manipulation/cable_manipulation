@@ -99,10 +99,14 @@ def processImage(inputImage,targetColor,visualize = False):
 
     LP = locatePixel(mask_oneColor,mask_allOther,55)
     mask_grabOK = LP.iterateImage()
-    vectorPairs = LP.findVector(mask_grabOK)
-    print("there are these many pairs",len(vectorPairs))
-    # print("the vector Pairs found are ",vectorPairs)
-
+    res = LP.findVector(mask_grabOK)
+    if res is None:
+        RuntimeError("Nothing is found")
+    pt, vec = res
+    ptprime = pt + vec
+    pt = (int(pt[0]), int(pt[1]))
+    ptprime = (int(ptprime[0]), int(ptprime[1]))
+    print("pt,ptprime",pt,ptprime)
     vector = []
 
     if visualize == True:
@@ -121,13 +125,24 @@ def processImage(inputImage,targetColor,visualize = False):
         plt.imshow(result_image2)
         ax5 = fig.add_subplot(325)
         ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
+      
         plt.imshow(mask_grabOK, cmap="gray")
-        
+        # X = vectorPairs[0]
+        # Y = vectorPairs[1]
+
+        ax6 = fig.add_subplot(326)
+        mask_tmp = cv2.cvtColor(mask_grabOK.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        mask_with_vec = cv2.line(mask_tmp, pt, ptprime, (0, 255, 0), 4)
+        # plt.imshow(mask_with_vec)
+        cv2.imshow("image",mask_with_vec)
+        cv2.waitKey(0)
+        # plt.show()
         ax1.set_axis_off()
         ax2.set_axis_off()
         ax3.set_axis_off()
         ax4.set_axis_off()
         ax5.set_axis_off()
+        ax6.set_axis_off()
        
 
         #plot vector
@@ -142,14 +157,9 @@ def processImage(inputImage,targetColor,visualize = False):
         #     ax6 = fig.add_subplot(326)
         #     plt.plot([x1,x2],[y1,y2]) 
         #     plt.show()
-        ax6 = fig.add_subplot(326)
+        # ax6 = fig.add_subplot(326)
 
-        X = vectorPairs[0]
-        Y = vectorPairs[1]
-        plt.plot(X,Y)
-        plt.xlim([0,800])
-        plt.ylim([0,640])
-        plt.show()
+
     return (mask_grabOK,vector)
 
 

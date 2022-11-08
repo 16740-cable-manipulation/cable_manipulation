@@ -98,7 +98,11 @@ def processImage(inputImage,targetColor,visualize = False):
 
 
     LP = locatePixel(mask_oneColor,mask_allOther,55)
-    boundaryBox = LP.iterateImage()
+    mask_grabOK = LP.iterateImage()
+    vectorPairs = LP.findVector(mask_grabOK)
+    print("there are these many pairs",len(vectorPairs))
+    # print("the vector Pairs found are ",vectorPairs)
+
     vector = []
 
     if visualize == True:
@@ -117,15 +121,35 @@ def processImage(inputImage,targetColor,visualize = False):
         plt.imshow(result_image2)
         ax5 = fig.add_subplot(325)
         ax5.set_title('Possible Grab Pixels',fontdict = {'fontsize':8} )
-        plt.imshow(boundaryBox, cmap="gray")
+        plt.imshow(mask_grabOK, cmap="gray")
         
         ax1.set_axis_off()
         ax2.set_axis_off()
         ax3.set_axis_off()
         ax4.set_axis_off()
         ax5.set_axis_off()
-        plt.show()
+       
 
-    return (boundaryBox,vector)
+        #plot vector
+        # for vect in vectorPairs:
+        #     p1 = vect[0]
+        #     x1 = p1[0]
+        #     y1 = p1[0]
+
+        #     p2 = vect[1]
+        #     x2 = p2[0]
+        #     y2 = p2[1]
+        #     ax6 = fig.add_subplot(326)
+        #     plt.plot([x1,x2],[y1,y2]) 
+        #     plt.show()
+        ax6 = fig.add_subplot(326)
+
+        X = vectorPairs[0]
+        Y = vectorPairs[1]
+        plt.plot(X,Y)
+        plt.xlim([0,800])
+        plt.ylim([0,640])
+        plt.show()
+    return (mask_grabOK,vector)
 
 

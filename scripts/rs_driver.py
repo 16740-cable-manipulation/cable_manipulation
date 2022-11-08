@@ -1,7 +1,6 @@
 import time
 
 import cv2
-from cv_bridge import CvBridge
 import numpy as np
 import rospy
 import ros_numpy
@@ -25,8 +24,6 @@ class Realsense:
         align_to = rs.stream.color
         self.align = rs.align(align_to)
         self.pc = rs.pointcloud()
-        self.frame_buffer = []
-        self.bridge = CvBridge()
         self.K = None
         self.D = None
         self.intr = None  # depth intrinsic

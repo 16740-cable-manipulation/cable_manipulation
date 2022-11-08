@@ -2,11 +2,6 @@ import time
 
 import cv2
 import numpy as np
-import rospy
-import ros_numpy
-from sensor_msgs.msg import Image
-from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Header
 
 import pyrealsense2 as rs
 

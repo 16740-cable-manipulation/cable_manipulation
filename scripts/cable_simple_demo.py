@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     # 2.2 Process image to get 2D coordinate and tangent
     color = "blue"
-    pixel, vec_c = process_image(bgr, color)
+    mask, pixel, vec_c = process_image(bgr, color)
     vec_c_3d = np.array([[vec_c[0], vec_c[1], 0]])
 
     # 2.3 Get 3D coordinate

@@ -4,18 +4,31 @@ import cv2
 
 class CableSegmentation:
     def __init__(self):
-        # segmentation thresholds
-        self.r_low = self.normalizeHSV(0, 60, 30)
-        self.r_high = self.normalizeHSV(15, 80, 60)
+        # segmentation thresholds for iphone images
+        # self.r_low = self.normalizeHSV(0, 60, 30)
+        # self.r_high = self.normalizeHSV(15, 80, 60)
+
+        # self.g_low = self.normalizeHSV(165, 75, 20)
+        # self.g_high = self.normalizeHSV(175, 100, 40)
+
+        # self.b_low = self.normalizeHSV(220, 35, 35)
+        # self.b_high = self.normalizeHSV(232, 55, 55)
+
+        # self.y_low = self.normalizeHSV(45, 40, 45)
+        # self.y_high = self.normalizeHSV(55, 85, 100)
+
+        # segmentation thresholds for realsense images
+        self.r_low = self.normalizeHSV(0, 40, 25)
+        self.r_high = self.normalizeHSV(12, 85, 50)
 
         self.g_low = self.normalizeHSV(165, 75, 20)
         self.g_high = self.normalizeHSV(175, 100, 40)
 
-        self.b_low = self.normalizeHSV(220, 35, 35)
-        self.b_high = self.normalizeHSV(232, 55, 55)
+        self.b_low = self.normalizeHSV(205, 40, 25)
+        self.b_high = self.normalizeHSV(220, 75, 50)
 
-        self.y_low = self.normalizeHSV(45, 40, 45)
-        self.y_high = self.normalizeHSV(55, 85, 100)
+        self.y_low = self.normalizeHSV(35, 40, 30)
+        self.y_high = self.normalizeHSV(50, 80, 70)
 
     def normalizeHSV(self, h, s, v):
         # opencv's hsv value are 179.255.255

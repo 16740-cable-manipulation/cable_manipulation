@@ -32,6 +32,7 @@ class MyFranka:
         self.fa.open_gripper()
         time.sleep(self.time_per_move)
 
+    
     def goto_pose(self, pose, use_impedance=False):
         assert type(pose) is dict
         rot = pose["R"]
@@ -55,6 +56,16 @@ class MyFranka:
         }
         self.goto_pose(home_pose, use_impedance=False)
         time.sleep(self.time_per_move)
+
+    def my_get_pose(self):
+        tf_w_ee = self.fa.get_pose()
+        t_w_ee = tf_w_ee.translation
+        q_w_ee = tf_w_ee.quaternion  # xyzw
+        R_w_ee = R.from_quat(q_w_ee).as_matrix()
+        p = {"R": R_w_ee, "t": t_w_ee}
+        return p
+
+
 
     def goto_point_and_vec(self, point_c, vec_c_3d):
         # transform point to world frame
@@ -100,3 +111,4 @@ class MyFranka:
         time.sleep(2)
         self.goto_pose(p, use_impedance=False)
         time.sleep(self.time_per_move)
+    

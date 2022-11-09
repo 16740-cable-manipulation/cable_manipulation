@@ -3,7 +3,7 @@ from random import sample
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from rs_driver import Realsense
+# from rs_driver import Realsense
 from cable_segmentation import CableSegmentation
 from locate_pixel import locatePixel
 
@@ -18,8 +18,8 @@ class CableManipulation:
             100  # for cropping the center area before selecting grasp point
         )
         self.vector_grid_dize = 41  # for computing the vector
-        if self.use_rs is True:
-            self.realsense = Realsense()
+        # if self.use_rs is True:
+            # self.realsense = Realsense()
 
     def preprocessImage(self, inputImage, targetColor):
         img = cv2.cvtColor(inputImage, cv2.COLOR_BGR2RGB)
@@ -95,11 +95,11 @@ class CableManipulation:
                 ):
                     break
                 sample += 1
-            if r is None:
+            # if r is None:
                 RuntimeError("Sampled 50 pixels, none has valid depth!")
-                if self.use_rs is True:
-                    self.realsense.close()
-                quit(1)
+                # if self.use_rs is True:
+                #      self.realsense.close()
+                # quit(1)
 
         else:
             sample = 0
@@ -114,22 +114,22 @@ class CableManipulation:
                     [c + dw, r + dh]
                 )  # pixel coordinate in the original mask
                 # check if it has valid depth
-                point_c = self.realsense.deproject_pixel(depth, pt[0], pt[1])
-                if point_c[2] >= 0.05 or point_c[2] <= 1:
-                    size = (gridSize - 1) / 2
-                    if (
-                        r + size < self.image_height - 2 * self.rim_offset
-                        and r - size >= 0
-                        and c + size < self.image_width - 2 * self.rim_offset
-                        and c - size >= 0
-                    ):
-                        break
+                # point_c = self.realsense.deproject_pixel(depth, pt[0], pt[1])
+                # if point_c[2] >= 0.05 or point_c[2] <= 1:
+                #     size = (gridSize - 1) / 2
+                #     if (
+                #         r + size < self.image_height - 2 * self.rim_offset
+                #         and r - size >= 0
+                #         and c + size < self.image_width - 2 * self.rim_offset
+                #         and c - size >= 0
+                #     ):
+                #         break
                 sample += 1
             if r is None:
                 RuntimeError("Sampled 50 pixels, none has valid depth!")
-                if self.use_rs is True:
-                    self.realsense.close()
-                quit(1)
+                # if self.use_rs is True:
+                #     # self.realsense.close()
+                # quit(1)
         init_r = min(
             max(0, r - int((gridSize - 1) / 2)),
             self.image_height - 1,

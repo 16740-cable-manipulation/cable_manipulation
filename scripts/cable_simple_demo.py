@@ -71,3 +71,19 @@ if __name__ == "__main__":
     fa.goto_point_and_vec(point_c, vec_c_3d)
 
     # Step 4: Lift, move, lower, ungrasp, home
+    cur_p = fa.my_get_pose()
+    cur_R =  cur_p["R"]
+    cur_t = cur_p["t"]
+    lift_t = cur_t + [0,0,0.2]
+    move_t = lift_t + [0.2,0,0]
+    lower_t = move_t + [0,0,-0.2]
+    fa.goto_pose({"R":cur_R,"t":lift_t})
+    time.sleep(fa.time_per_move)
+    fa.goto_pose({"R":cur_R,"t":move_t})
+    time.sleep(fa.time_per_move)
+    fa.goto_pose({"R":cur_R,"t":lower_t})
+    time.sleep(fa.time_per_move)
+    fa.fa.open_gripper()
+    time.sleep(fa.time_per_move)
+    fa.fa.reset_joint()
+

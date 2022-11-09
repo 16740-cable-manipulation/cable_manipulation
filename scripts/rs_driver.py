@@ -53,9 +53,12 @@ class Realsense:
         # set sensor sync mode
         sensor.set_option(rs.option.inter_cam_sync_mode, 0)
 
-    def getFrameSet(self):
+    def getFrameSet(self, skip_frames=0):
         """Get rs frames, construct PointCloud2 msg, add to buffer"""
-        frameset = self.pipeline.wait_for_frames()
+        i = max(skip_frames, 0) + 1
+        while i > 0:
+            frameset = self.pipeline.wait_for_frames()
+            i -= 1
         vals = self.getAlignedFrames(frameset)
         return vals
 

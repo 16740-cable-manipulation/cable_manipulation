@@ -34,8 +34,7 @@ if __name__ == "__main__":
 
     # 2.2 Process image to get 2D coordinate and tangent
     color = "blue"
-    mask, pixel, vec_c = cable_manipulator.processImage(bgr, color)
-    vec_c_3d = np.array([[vec_c[0], vec_c[1], 0]])
+    mask, pixel, vec = cable_manipulator.processImage(bgr, color)
 
     # 2.3 Get 3D coordinate
     point_c = cable_manipulator.realsense.deproject_pixel(
@@ -45,6 +44,19 @@ if __name__ == "__main__":
         point_c[2] < 0.05 or point_c[2] > 1
     ):  # filter out points with wrong depth
         RuntimeError("Bad pixel, no valid 3D coordinate!")
+
+    ptprime_tmp = [pixel[0] + vec[0], pixel[1] + vec[1]]
+    for i in range(2):
+        ptprime_tmp = cable_manipulator.realsense.deproject_pixel(
+            depth, ptprime_tmp[0], ptprime_tmp[1]
+        )
+        if (
+            ptprime_tmp[2] < 0.05 or ptprime_tmp[2] > 1
+        ):  # filter out points with wrong depth
+            RuntimeError("Bad vector, no valid 3D coordinate!")
+    vec_c_3d = np.array(
+        [[ptprime_tmp[0] - point_c[0], ptprime_tmp[1] - point_c[1], 0]]
+    )
 
     # 2.4 Compute gripper pose
     # Step 3: Command arm to reach target and grasp

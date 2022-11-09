@@ -177,7 +177,7 @@ class CableManipulation:
                         p2 = np.array([tmp_r, tmp_c])
         if p1 is None or p2 is None:
             return None
-        vec = np.floor(np.flip((p2 - p1)) * 3)
+        vec = np.floor(np.flip((p2 - p1)))
 
         ptprime = pt + vec
         if (

@@ -17,7 +17,7 @@ class CableManipulation:
         self.rim_offset = (
             100  # for cropping the center area before selecting grasp point
         )
-        self.vector_grid_dize = 40  # for computing the vector
+        self.vector_grid_dize = 41  # for computing the vector
         if self.use_rs is True:
             self.realsense = Realsense()
 
@@ -65,21 +65,42 @@ class CableManipulation:
 
         return (mask_grabOK, pt, vec)
 
-    def findVector(self, _mask_grabOK, depth):
+    def findVector(self, mask_grabOK_orig, depth):
         gridSize = self.vector_grid_dize
         dh = self.rim_offset
         dw = self.rim_offset
-        mask_grabOK = _mask_grabOK[
+        mask_grabOK = mask_grabOK_orig[
             dh : self.image_height - dh, dw : self.image_width - dw
         ]
         idx = np.argwhere(mask_grabOK > 0)
-
-        # TODO randomly find pixel with valid depth
+        print("number of possible grasp points: ", len(idx))
+        if len(idx) == 0:
+            RuntimeError("Not enough grasp points")
         if depth is None:
-            id = np.random.choice(np.arange(idx.shape[0]))
-            r = idx[id, 0]  # row coordinate in the cropped mask
-            c = idx[id, 1]
-            pt = np.array([c + dw, r + dh])
+            sample = 0
+            r = None
+            c = None
+            pt = None
+            while sample < 50:
+                id = np.random.choice(np.arange(idx.shape[0]))
+                r = idx[id, 0]  # row coordinate in the cropped mask
+                c = idx[id, 1]
+                pt = np.array([c + dw, r + dh])
+                size = (gridSize - 1) / 2
+                if (
+                    r + size < self.image_height - 2 * self.rim_offset
+                    and r - size >= 0
+                    and c + size < self.image_width - 2 * self.rim_offset
+                    and c - size >= 0
+                ):
+                    break
+                sample += 1
+            if r is None:
+                RuntimeError("Sampled 50 pixels, none has valid depth!")
+                if self.use_rs is True:
+                    self.realsense.close()
+                quit(1)
+
         else:
             sample = 0
             r = None
@@ -95,16 +116,28 @@ class CableManipulation:
                 # check if it has valid depth
                 point_c = self.realsense.deproject_pixel(depth, pt[0], pt[1])
                 if point_c[2] >= 0.05 or point_c[2] <= 1:
-                    break
+                    size = (gridSize - 1) / 2
+                    if (
+                        r + size < self.image_height - 2 * self.rim_offset
+                        and r - size >= 0
+                        and c + size < self.image_width - 2 * self.rim_offset
+                        and c - size >= 0
+                    ):
+                        break
                 sample += 1
             if r is None:
                 RuntimeError("Sampled 50 pixels, none has valid depth!")
                 if self.use_rs is True:
                     self.realsense.close()
                 quit(1)
-
-        init_r = min(max(0, r - int((gridSize - 1) / 2)), self.image_height - 1)
-        init_c = min(max(0, c - int((gridSize - 1) / 2)), self.image_width - 1)
+        init_r = min(
+            max(0, r - int((gridSize - 1) / 2)),
+            self.image_height - 1,
+        )
+        init_c = min(
+            max(0, c - int((gridSize - 1) / 2)),
+            self.image_width - 1,
+        )
         neighborhood = mask_grabOK[
             init_r : init_r + gridSize, init_c : init_c + gridSize
         ]

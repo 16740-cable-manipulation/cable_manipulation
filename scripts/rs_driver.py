@@ -30,7 +30,7 @@ class Realsense:
         depth_sensor = profile.get_device().first_depth_sensor()
         self.depth_scale = depth_sensor.get_depth_scale()
         self.intr = (
-            profile.get_stream(rs.stream.depth)
+            profile.get_stream(rs.stream.color)
             .as_video_stream_profile()
             .get_intrinsics()
         )

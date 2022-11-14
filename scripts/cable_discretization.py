@@ -2,6 +2,7 @@
 import sys
 import cv2
 import numpy as np
+import math
 
 class discretize():
     def __init__(self,cableMask):
@@ -27,12 +28,18 @@ class discretize():
         return (mean_x,mean_y)
 
     def findTangent(self,neighborhood):
+        cur_idx = np.argwhere(neighborhood > 0)
+        mid = math.floor(len(cur_idx)/2)
+        offset = 5 #distance between two points
+        p1 = cur_idx[mid]
+        p2 = cur_idx[mid+offset]
+        tangentVector = [p2[1]-p1[1],p2[0]-p1[0]] 
         return tangentVector
     
     def isEndCable(self):
 
         return True 
-        
+
     def slideWindow(self):
         #given point (r,c) find mean_r, mean_c in neighborhood, store mean_r, mean_c
         #find tangentVector in neighbohood

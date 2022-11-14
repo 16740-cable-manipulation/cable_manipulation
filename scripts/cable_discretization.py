@@ -14,8 +14,17 @@ class discretize():
         self.resultPixel = []
 
     def findMeanPixel(self,neighborhood):
-
-        return (mean_r,mean_c)
+        n_shape = neighborhood.shape
+        if len(n_shape) == 3:
+            neighborhood = neighborhood.mean(-1)
+        mesh_x, mesh_y = np.meshgrid(
+            list(range(len(neighborhood))), 
+            list(range(len(neighborhood[0])))
+        )
+        mean_x = int(np.sum(mesh_x * neighborhood)/np.sum(neighborhood))
+        mean_y = int(np.sum(mesh_y * neighborhood)/np.sum(neighborhood))
+        # Need to add X,Y offsets after values are returned
+        return (mean_x,mean_y)
 
     def findTangent(self,neighborhood):
         return tangentVector

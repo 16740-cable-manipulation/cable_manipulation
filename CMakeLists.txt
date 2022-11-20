@@ -32,7 +32,7 @@ find_package(Ceres 1.14.0 EXACT REQUIRED)
 
 
 catkin_package(
-  INCLUDE_DIRS include
+  #INCLUDE_DIRS include
   CATKIN_DEPENDS roscpp std_msgs sensor_msgs geometry_msgs message_runtime
 )
 

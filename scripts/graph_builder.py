@@ -36,7 +36,7 @@ class Graph:
     """
 
     def __init__(self, free_endpoint=[], fixed_endpoint=[], cables=[]):
-        self.G = nx.Graph(
+        self.G = nx.DiGraph(
             free_endpoint=copy.deepcopy(free_endpoint),
             fixed_endpoint=copy.deepcopy(fixed_endpoint),
             cables=copy.deepcopy(cables),
@@ -54,6 +54,7 @@ class Graph:
             self.G = nx.node_link_graph(json.load(f))
 
     def add_edge(self, id1, id2, pos):
+        """Add an edge from id1 to id2"""
         assert self.has_node(id1) and self.has_node(id2)
         self.G.add_edge(id1, id2, pos=pos)
 
@@ -69,8 +70,9 @@ class Graph:
         return id in self.G
 
     def has_edge(self, id1, id2):
+        """Whether there is an edge from id1 to id2"""
         return (
-            self.has_node(id1) and self.has_node(id2) and id1 in self.G.adj[id2]
+            self.has_node(id1) and self.has_node(id2) and id2 in self.G.adj[id1]
         )
 
     def _generate_next_available_id(self):
@@ -86,13 +88,44 @@ class Graph:
     def is_endpoint(self, id):
         return self.has_node(id) and self.G.nodes[id]["type"] == NODE_ENDPOINT
 
+    def is_fixed_endpoint(self, id):
+        return id in self.G.graph["fixed_endpoint"]
+
     def get_pos_label(self, id1, id2):
         assert self.has_edge(id1, id2)
         return self.G.edges[id1, id2]["pos"]
 
-    def get_neighbors(self, id):
+    def get_neighbors(self, id, pos=POS_NONE):
+        """Get both the predecessor and the successor
+
+        ``pos``: Specify the position label of the edges between this node
+        and its neighbors. If pos is POS_NONE, all preds & successors will be
+        returned.
+        """
         assert self.has_node(id)
-        return list(self.G.neighbors(id))
+        return self.get_succ(id, pos=pos) + self.get_pred(id, pos=pos)
+
+    def get_succ(self, id, pos=POS_NONE):
+        """Get a list of successor(s)"""
+        assert self.has_node(id)
+        ls = list(self.G.successors(id))
+        if pos == POS_NONE:
+            return ls
+        else:
+            return list(
+                filter(lambda succ: self.get_pos_label(id, succ) == pos, ls)
+            )
+
+    def get_pred(self, id, pos=POS_NONE):
+        """Get a list of predecessor(s)"""
+        assert self.has_node(id)
+        ls = list(self.G.predecessors(id))
+        if pos == POS_NONE:
+            return ls
+        else:
+            return list(
+                filter(lambda pred: self.get_pos_label(pred, id) == pos, ls)
+            )
 
     def get_nodes(self):
         return list(self.G.nodes)
@@ -114,6 +147,16 @@ class Graph:
         """Return a deep copy of the coords list"""
         assert self.has_node(id)
         return copy.deepcopy(self.G.nodes[id]["coords"])
+
+    def get_next_keypoint(self, id):
+        """Get the id of the next crossing or endpoint. Now assume id is not a
+        keypoint itself @TODO but we can't assume that"""
+        if self.is_fixed_endpoint(id):
+            return None
+        while True:
+            id = self.get_succ(id)[0]
+            if self.is_endpoint(id) or self.is_crossing(id):
+                return id
 
     def add_free_endpoint(self, id):
         assert self.has_node(id)
@@ -140,11 +183,11 @@ class Graph:
 
     def visualize(self, save_path=None):
         colors = [
-            "red"
+            "orange"
             if self.is_crossing(id)
-            else "blue"
+            else "purple"
             if self.is_endpoint(id)
-            else "green"
+            else "gray"
             for id in self.get_nodes()
         ]
         e_colors = [
@@ -253,7 +296,7 @@ class CableGraph:
                 if i == 0:
                     graph.add_free_endpoint(id)
                 else:
-                    graph.add_edge(id, pred_id, pos[i - 1])
+                    graph.add_edge(pred_id, id, pos[i - 1])
                     if fixed_endpoint_id is None:
                         fixed_endpoint_id = id
                     graph.add_fixed_endpoint(fixed_endpoint_id)
@@ -265,10 +308,10 @@ class CableGraph:
                         cx_coord_id_map[tuple(coord)] = id
                     else:
                         graph.add_node_id(id, NODE_CROSSING, coord)
-                    graph.add_edge(id, pred_id, pos[i])
+                    graph.add_edge(pred_id, id, pos[i])
                 else:
                     id = graph.add_node(NODE_FREE, coord)
-                    graph.add_edge(id, pred_id, pos[i - 1])
+                    graph.add_edge(pred_id, id, pos[i - 1])
             pred_id = id
         graph.set_all_edge_color(color)
         return graph
@@ -303,7 +346,7 @@ data1 = {"coords": coords1, "pos": pos1, "cx": cx1, "color": "blue"}
 # cg.create_graphs(cables_data)
 # cg.graphs["cable1"].visualize()
 
-coords2 = np.array([[0, 6], [0, 5], [1, 4], [2, 3], [3, 4], [4, 5], [5, 5]])
+coords2 = np.array([[0, 6], [0, 5], [1, 4], [2, 3.5], [3, 4], [4, 5], [5, 5]])
 cx2 = [[3, 4], [1, 4]]
 coords2 = coords2.tolist()
 pos2 = [POS_NONE] * 7
@@ -315,4 +358,6 @@ data2 = {"coords": coords2, "pos": pos2, "cx": cx2, "color": "red"}
 cables_data = {"cable1": data1, "cable2": data2}
 cg.create_graphs(cables_data)
 cg.create_compound_graph()
+print(cg.compound_graph.get_neighbors(2, pos=POS_DOWN))
+print(cg.compound_graph.get_next_keypoint(1))
 cg.compound_graph.visualize()

@@ -1,7 +1,6 @@
 import networkx as nx
 import json
 import copy
-import shortuuid
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -19,9 +18,8 @@ id_counter = -1
 class Graph:
     """Graph of a single cable
 
-    A linear graph containing N nodes (vertex, v) and N-1 edges (e).
+    A graph containing N nodes (vertex, v) and at least N-1 edges (e).
     Each node is assigned a globally unique ID.
-    Each vertex has at most 2 edges.
     The graph properties include its cable ID and its endpoint nodes.
 
     Each vertex stores the coordinates of a point.
@@ -208,15 +206,15 @@ class CableGraph:
 
         Input:
         ``cables_data``: dict of the form {cableID1: data1, cableID2: data2, },
-        where data is a dict of the form 
+        where data is a dict of the form
         {"coords": coords, "pos": pos, "cx": cx, "color": color}
 
         coords: a N*2 2D list (not np array) of all N inter-connected
-        discretization points along the cable, whose first coord is the 
+        discretization points along the cable, whose first coord is the
         free endpoint and the last coord is the fixed endpoint
 
-        pos: a 1D list of length N which gets values from 
-        {POS_UP, POS_DOWN, POS_NONE}, depending on whether the coord is 
+        pos: a 1D list of length N which gets values from
+        {POS_UP, POS_DOWN, POS_NONE}, depending on whether the coord is
         an overcrossing, an undercrossing, or neither.
 
         cx: a M*2 2D list of the coordinates of the M crossings.

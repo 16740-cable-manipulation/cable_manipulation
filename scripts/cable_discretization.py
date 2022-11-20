@@ -4,8 +4,9 @@ import cv2
 import numpy as np
 import math
 
-class discretize():
-    def __init__(self,cableMask):
+
+class Discretize:
+    def __init__(self, cableMask):
         self.windowSize = 45
         self.cableMask = cableMask
         self.maskH = np.shape(self.cableMask)[0]
@@ -14,36 +15,35 @@ class discretize():
         self.startPosition = idx[0]
         self.resultPixel = []
 
-    def findMeanPixel(self,neighborhood):
+    def findMeanPixel(self, neighborhood):
         n_shape = neighborhood.shape
         if len(n_shape) == 3:
             neighborhood = neighborhood.mean(-1)
         mesh_x, mesh_y = np.meshgrid(
-            list(range(len(neighborhood))), 
-            list(range(len(neighborhood[0])))
+            list(range(len(neighborhood))), list(range(len(neighborhood[0])))
         )
-        mean_x = int(np.sum(mesh_x * neighborhood)/np.sum(neighborhood))
-        mean_y = int(np.sum(mesh_y * neighborhood)/np.sum(neighborhood))
+        mean_x = int(np.sum(mesh_x * neighborhood) / np.sum(neighborhood))
+        mean_y = int(np.sum(mesh_y * neighborhood) / np.sum(neighborhood))
         # Need to add X,Y offsets after values are returned
-        return (mean_x,mean_y)
+        return (mean_x, mean_y)
 
-    def findTangent(self,neighborhood):
+    def findTangent(self, neighborhood):
         cur_idx = np.argwhere(neighborhood > 0)
-        mid = math.floor(len(cur_idx)/2)
-        offset = 5 #distance between two points
+        mid = math.floor(len(cur_idx) / 2)
+        offset = 5  # distance between two points
         p1 = cur_idx[mid]
-        p2 = cur_idx[mid+offset]
-        tangentVector = [p2[1]-p1[1],p2[0]-p1[0]] 
+        p2 = cur_idx[mid + offset]
+        tangentVector = [p2[1] - p1[1], p2[0] - p1[0]]
         return tangentVector
-    
+
     def isEndCable(self):
 
-        return True 
+        return True
 
     def slideWindow(self):
-        #given point (r,c) find mean_r, mean_c in neighborhood, store mean_r, mean_c
-        #find tangentVector in neighbohood
-        #move to next neighborhood based on the tangentVector
+        # given point (r,c) find mean_r, mean_c in neighborhood, store mean_r, mean_c
+        # find tangentVector in neighbohood
+        # move to next neighborhood based on the tangentVector
         cur_row = self.startPosition[0]
         cur_col = self.startPosition[1]
         init_r = min(
@@ -60,9 +60,6 @@ class discretize():
         self.resultPixel.append(meanPixel)
         tangentVector = self.findTangent(neighborhood)
 
-        nextPoint = [init_r init_c] + tangentVector 
-
+        nextPoint = np.array([init_r, init_c]) + tangentVector
 
         return
-    
-

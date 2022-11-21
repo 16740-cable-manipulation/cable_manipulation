@@ -88,8 +88,19 @@ class Graph:
     def is_endpoint(self, id):
         return self.has_node(id) and self.G.nodes[id]["type"] == NODE_ENDPOINT
 
+    def is_free(self, id):
+        return (
+            self.has_node(id)
+            and not self.is_crossing(id)
+            and not self.is_endpoint(id)
+        )
+
     def is_fixed_endpoint(self, id):
         return id in self.G.graph["fixed_endpoint"]
+
+    def get_free_endpoint(self):
+        assert len(self.G.graph["free_endpoint"]) > 0
+        return self.G.graph["free_endpoint"][0]
 
     def get_pos_label(self, id1, id2):
         assert self.has_edge(id1, id2)
@@ -106,25 +117,35 @@ class Graph:
         return self.get_succ(id, pos=pos) + self.get_pred(id, pos=pos)
 
     def get_succ(self, id, pos=POS_NONE):
-        """Get a list of successor(s)"""
+        """Get a list of successor(s). If id is a crossing, pos will
+        be the selection criterion"""
         assert self.has_node(id)
         ls = list(self.G.successors(id))
         if pos == POS_NONE:
             return ls
         else:
             return list(
-                filter(lambda succ: self.get_pos_label(id, succ) == pos, ls)
+                filter(
+                    lambda succ: self.get_pos_label(id, succ) == pos
+                    or self.get_pos_label(id, succ) == POS_NONE,
+                    ls,
+                )
             )
 
     def get_pred(self, id, pos=POS_NONE):
-        """Get a list of predecessor(s)"""
+        """Get a list of predecessor(s). If id is a crossing, pos will
+        be the selection criterion"""
         assert self.has_node(id)
         ls = list(self.G.predecessors(id))
         if pos == POS_NONE:
             return ls
         else:
             return list(
-                filter(lambda pred: self.get_pos_label(pred, id) == pos, ls)
+                filter(
+                    lambda pred: self.get_pos_label(pred, id) == pos
+                    or self.get_pos_label(pred, id) == POS_NONE,
+                    ls,
+                )
             )
 
     def get_nodes(self):
@@ -148,15 +169,59 @@ class Graph:
         assert self.has_node(id)
         return copy.deepcopy(self.G.nodes[id]["coords"])
 
-    def get_next_keypoint(self, id):
-        """Get the id of the next crossing or endpoint. Now assume id is not a
-        keypoint itself @TODO but we can't assume that"""
+    def get_next_keypoint(self, id, pos=POS_NONE):
+        """Get the id of the next crossing or endpoint and the crossing pos. 
+
+        Return the next keypoint and a list of free nodes starting from id, 
+        including id if id is free.
+        
+        If the id is a crossing, ``pos`` argument has to be provided
+        """
         if self.is_fixed_endpoint(id):
-            return None
+            return None, POS_NONE, []
+        free_nodes = []
+        if self.is_free(id):
+            free_nodes.append(id)
+        elif self.is_crossing(id):
+            if pos == POS_NONE:
+                RuntimeError(
+                    "Need pos lable if the starting node is a crossing"
+                )
         while True:
-            id = self.get_succ(id)[0]
-            if self.is_endpoint(id) or self.is_crossing(id):
-                return id
+            pred = id
+            id = self.get_succ(id, pos=pos)[0]
+            if not self.is_free(id):
+                cx_pos = self.get_pos_label(pred, id)
+                return id, cx_pos, free_nodes
+            else:
+                free_nodes.append(id)
+
+    def get_next_fixed_keypoint(self, id, pos=POS_NONE):
+        """Get the id of the next undercrossing or fixed endpoint. 
+
+        Return the next fixed keypoint and a list of free nodes starting from 
+        id, including id if id is free.
+        
+        If the id is a crossing, ``pos`` argument has to be provided
+        """
+        next_id, cx_pos, nodes = self.get_next_keypoint(id, pos=pos)
+        if (
+            next_id is None
+            or cx_pos == POS_DOWN
+            or self.is_fixed_endpoint(next_id)
+        ):
+            return next_id, nodes
+        while True:
+            next_id, cx_pos, new_nodes = self.get_next_keypoint(
+                next_id, pos=cx_pos
+            )
+            nodes.extend(new_nodes)
+            if (
+                next_id is None
+                or cx_pos == POS_DOWN
+                or self.is_fixed_endpoint(next_id)
+            ):
+                return next_id, nodes
 
     def add_free_endpoint(self, id):
         assert self.has_node(id)
@@ -359,5 +424,6 @@ cables_data = {"cable1": data1, "cable2": data2}
 cg.create_graphs(cables_data)
 cg.create_compound_graph()
 print(cg.compound_graph.get_neighbors(2, pos=POS_DOWN))
-print(cg.compound_graph.get_next_keypoint(1))
+print(cg.graphs["cable1"].get_succ(6, pos=POS_UP))
+print(cg.graphs["cable2"].get_next_fixed_keypoint(12))
 cg.compound_graph.visualize()

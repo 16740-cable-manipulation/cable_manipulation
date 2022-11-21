@@ -53,8 +53,7 @@ class Discretize:
             max(0, cur_col - int((self.windowSize - 1) / 2)), self.maskW - 1
         )
         neighborhood = self.cableMask[
-            init_r : init_r + self.windowSize,
-            init_c : init_c + self.windowSize,
+            init_r : init_r + self.windowSize, init_c : init_c + self.windowSize
         ]
         meanPixel = self.findMeanPixel(neighborhood)
         self.resultPixel.append(meanPixel)
@@ -63,3 +62,12 @@ class Discretize:
         nextPoint = np.array([init_r, init_c]) + tangentVector
 
         return
+
+    # TODO
+    def getCablesDataFromImage(self, img):
+        """Generate cable data dictionary given an RGB image"""
+        data1 = {"coords": None, "pos": None, "cx": None, "color": "red"}
+        data2 = {"coords": None, "pos": None, "cx": None, "color": "blue"}
+        cables_data = {"cableID1": data1, "cableID2": data2}
+        return cables_data
+

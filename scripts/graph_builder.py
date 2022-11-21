@@ -154,6 +154,11 @@ class Graph:
     def get_edges(self):
         return list(self.G.edges)
 
+    def get_crossings(self):
+        return list(
+            filter(lambda node: self.is_crossing(node), self.get_nodes())
+        )
+
     def set_all_edge_color(self, color):
         dic = {}
         for edge in self.get_edges():
@@ -299,7 +304,7 @@ class CableGraph:
     def __init__(self):
         # a collection of graphs, one for each cable
         self.graphs = {}
-        self.compound_graph = None
+        self.compound_graph = Graph()
 
     def create_compound_graph(self):
         graph_prev = None
@@ -426,4 +431,5 @@ cg.create_compound_graph()
 print(cg.compound_graph.get_neighbors(2, pos=POS_DOWN))
 print(cg.graphs["cable1"].get_succ(6, pos=POS_UP))
 print(cg.graphs["cable2"].get_next_fixed_keypoint(12))
+print(cg.compound_graph.get_crossings())
 cg.compound_graph.visualize()

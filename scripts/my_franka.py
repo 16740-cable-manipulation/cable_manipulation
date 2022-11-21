@@ -6,6 +6,7 @@ from frankapy import FrankaArm
 import yaml
 from scipy.spatial.transform import Rotation as R
 import copy
+from action import Action
 
 
 class MyFranka:
@@ -112,3 +113,6 @@ class MyFranka:
         time.sleep(self.time_per_move)
         self.fa.close_gripper()
         time.sleep(2)
+
+    def exe_action(action: Action):
+        pass

@@ -65,7 +65,7 @@ class Discretize:
 
     # TODO
     def getCablesDataFromImage(self, img):
-        """Generate cable data dictionary given an RGB image"""
+        """Generate cable data dictionary given an cv BGR image"""
         data1 = {"coords": None, "pos": None, "cx": None, "color": "red"}
         data2 = {"coords": None, "pos": None, "cx": None, "color": "blue"}
         cables_data = {"cableID1": data1, "cableID2": data2}

@@ -48,18 +48,38 @@ class Discretize:
         self.discretized_r = None
         self.discretized_c = None
 
-    def findMeanPixel(self, neighborhood):
+    def findMeanPixel(self, neighborhood, contours):
         n_shape = neighborhood.shape
         if len(n_shape) == 3:
             neighborhood = neighborhood.mean(-1)
-        mesh_x, mesh_y = np.meshgrid(
-            list(range(len(neighborhood))), list(range(len(neighborhood[0])))
-        )
-        mean_x = int(np.sum(mesh_x * neighborhood) / np.sum(neighborhood))
-        mean_y = int(np.sum(mesh_y * neighborhood) / np.sum(neighborhood))
-        # Need to add X,Y offsets after values are returned
-        return (mean_x, mean_y)
 
+        if len(contours)==1:
+            mesh_x, mesh_y = np.meshgrid(
+                list(range(len(neighborhood[0]))), list(range(len(neighborhood)))
+            )
+            mean_x = int(np.sum(mesh_x * neighborhood) / np.sum(neighborhood))
+            mean_y = int(np.sum(mesh_y * neighborhood) / np.sum(neighborhood))
+            # Need to add X,Y offsets after values are returned
+            return (mean_x, mean_y)
+        
+        elif len(contours)==2:
+            res = []
+            box1, box2 = contours # (x,y,w,h)
+            for b in [box1, box2]:
+                x,y,w,h = b
+                temp_neighborhood = neighborhood[y:y+h,x:x+w]
+                mesh_x, mesh_y = np.meshgrid(
+                    list(range(h)), list(range(w))
+                )
+                mean_x = int(np.sum(mesh_x * neighborhood) / np.sum(neighborhood))
+                mean_y = int(np.sum(mesh_y * neighborhood) / np.sum(neighborhood))
+                res.append((mean_x,mean_y))
+
+
+            return ((res[0][0] + res[1][0])//2, (res[0][1] + res[1][1])//2)
+
+
+        raise NotImplementedError("Case with contours >2 is not implemented")
 
     def findVector(self, neighborhood,idx_neighborhood):
 
@@ -223,7 +243,8 @@ class Discretize:
             self.discretized_r = centerR + int(unitV[0]*gridSize)
             self.discretized_c = centerC + int(unitV[1]*gridSize)
 
-            mean_pixel = self.findMeanPixel(neighborhood)  #x is col, y is row
+            #Need to add offset to the mean pixel coordinates
+            mean_pixel = self.findMeanPixel(neighborhood, contours)  #x is col, y is row
 
             self.resultPixels.append(mean_pixel)
 

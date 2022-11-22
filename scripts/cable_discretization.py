@@ -1,4 +1,4 @@
-# from cable_manipulation import CableManipulation
+from cable_manipulation import CableManipulation
 import sys
 import cv2
 import numpy as np
@@ -235,5 +235,10 @@ class Discretize:
         data1 = {"coords": None, "pos": None, "cx": None, "color": "red"}
         data2 = {"coords": None, "pos": None, "cx": None, "color": "blue"}
         cables_data = {"cableID1": data1, "cableID2": data2}
+        
+        cable_manipulator = CableManipulation(640, 480, use_rs=False)
+        mask, pixel, vec = cable_manipulator.processImage(
+        img, color, inputDepth=depth, visualize=True
+    )
         return cables_data
 

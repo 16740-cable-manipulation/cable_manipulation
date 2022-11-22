@@ -71,10 +71,9 @@ class Discretize:
                 mesh_x, mesh_y = np.meshgrid(
                     list(range(h)), list(range(w))
                 )
-                mean_x = int(np.sum(mesh_x * neighborhood) / np.sum(neighborhood))
-                mean_y = int(np.sum(mesh_y * neighborhood) / np.sum(neighborhood))
-                res.append((mean_x,mean_y))
-
+                mean_x = int(np.sum(mesh_x * temp_neighborhood) / np.sum(temp_neighborhood))
+                mean_y = int(np.sum(mesh_y * temp_neighborhood) / np.sum(temp_neighborhood))
+                res.append((x+mean_x,y+mean_y))
 
             return ((res[0][0] + res[1][0])//2, (res[0][1] + res[1][1])//2)
 

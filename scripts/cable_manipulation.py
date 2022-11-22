@@ -14,9 +14,11 @@ class CableManipulation:
         self.use_rs = use_rs
         self.image_width = w
         self.image_height = h
+        # TODO tune this
         self.rim_offset = (
             100  # for cropping the center area before selecting grasp point
         )
+        self.mask_valid_thresh = 100
         self.vector_grid_dize = 41  # for computing the vector
         if self.use_rs is True:
             self.realsense = Realsense()
@@ -33,6 +35,29 @@ class CableManipulation:
         result_image2 = cv2.bitwise_and(img, img, mask=mask_allOther)
 
         return mask_oneColor, mask_allOther, result_image, result_image2
+
+    def get_available_masks(self, inputImage):
+        res = {}
+        for color in ["red", "green", "blue", "yellow"]:
+            (
+                mask_oneColor,
+                mask_allOther,
+                result_image,
+                result_image2,
+            ) = self.preprocessImage(inputImage, color)
+
+            LP = locatePixel(mask_oneColor, mask_allOther, 55)
+            mask_grabOK = LP.iterateImage()
+            # TODO check if this mask is valid
+            if self.is_mask_valid(mask_grabOK):
+                res[color] = mask_grabOK
+        return res
+
+    def is_mask_valid(self, mask):
+        idx = np.argwhere(mask > 0)
+        if len(idx) > self.mask_valid_thresh:
+            return True
+        return False
 
     def processImage(
         self, inputImage, targetColor, inputDepth=None, visualize=False

@@ -36,9 +36,13 @@ class Discretize:
         tangentVector = [p2[1] - p1[1], p2[0] - p1[0]]
         return tangentVector
 
-    def isEndCable(self):
+    def findContours(self, neighborhood):
+        contours, hierarchy  = cv2.findContours(neighborhood, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        return len(contours)
 
-        return True
+    def isEndCable(self, neighborhood):
+        # Assumes binary mask
+        return neighborhood.sum() == 0
 
     def slideWindow(self):
         # given point (r,c) find mean_r, mean_c in neighborhood, store mean_r, mean_c

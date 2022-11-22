@@ -13,11 +13,40 @@ class Discretize:
         self.maskW = np.shape(self.cableMask)[1]
         idx = np.argwhere(self.cableMask > 0)
         self.startPosition = idx[0]
-        self.resultPixel = []
+        self.resultPixels = []
         self.rim_offset = (
             100  # for cropping the center area before selecting grasp point
         )
-        self.vector_grid_dize = 41  # for computing the vector
+        self.vector_grid_size = 41  # for computing the vector
+
+
+        
+        dh = self.rim_offset
+        dw = self.rim_offset
+        self.mask_rimOff = self.cableMask[
+            dh : self.maskH - dh, dw : self.maskW - dw
+        ]
+        self.idx = np.argwhere(self.mask_rimOff > 0)
+    
+
+
+        edgeA = np.vstack((np.zeros(self.vector_grid_size), np.arange(self.vector_grid_size))).T
+        edgeB = np.vstack(
+            (np.arange(1, self.vector_grid_size), np.ones(self.vector_grid_size - 1) * (self.vector_grid_size - 1))
+        ).T
+        edgeC = np.vstack(
+            (
+                np.ones(self.vector_grid_size - 1) * (self.vector_grid_size - 1),
+                np.arange(self.vector_grid_size - 2, -1, -1),
+            )
+        ).T
+        edgeD = np.vstack(
+            (np.arange(self.vector_grid_size - 2, 0, -1), np.zeros(self.vector_grid_size - 2))
+        ).T
+        self.edges = np.vstack((edgeA, edgeB, edgeC, edgeD))
+    
+        self.discretized_r = None
+        self.discretized_c = None
 
     def findMeanPixel(self, neighborhood):
         n_shape = neighborhood.shape
@@ -31,42 +60,12 @@ class Discretize:
         # Need to add X,Y offsets after values are returned
         return (mean_x, mean_y)
 
-    # def findTangent(self, neighborhood):
-    #     cur_idx = np.argwhere(neighborhood > 0)
-    #     mid = math.floor(len(cur_idx) / 2)
-    #     offset = 5  # distance between two points
-    #     p1 = cur_idx[mid]
-    #     p2 = cur_idx[mid + offset]
-    #     tangentVector = [p2[1] - p1[1], p2[0] - p1[0]]
-    #     return tangentVector
 
-    def findVector(self, mask_grabOK_orig):
-        gridSize = self.vector_grid_dize
-        dh = self.rim_offset
-        dw = self.rim_offset
-        mask_grabOK = mask_grabOK_orig[
-            dh : self.maskH - dh, dw : self.maskW - dw
-        ]
-        idx = np.argwhere(mask_grabOK > 0)
-        id = np.random.choice(np.arange(idx.shape[0]))
-        r = idx[id, 0]  # row coordinate in the cropped mask
-        c = idx[id, 1]
-       
+    def findVector(self, neighborhood,idx_neighborhood):
 
-        init_r = min(
-            max(0, r - int((gridSize - 1) / 2)),
-            self.maskH - 1,
-        )
-        init_c = min(
-            max(0, c - int((gridSize - 1) / 2)),
-            self.maskW - 1,
-        )
-        neighborhood = mask_grabOK[
-            init_r : init_r + gridSize, init_c : init_c + gridSize
-        ]
-        idx_neighborhood = np.argwhere(neighborhood > 0)
         # if there is more than 1 pixel in this neighbohood and the distance between these neighboods are over a threshold value
         # out the pixel pair in a list
+        gridSize = self.vector_grid_size
         p1 = None
         p1_idx = 0
         p2 = None
@@ -74,23 +73,10 @@ class Discretize:
             return None
         print(len(idx_neighborhood))
 
-        edgeA = np.vstack((np.zeros(gridSize), np.arange(gridSize))).T
-        edgeB = np.vstack(
-            (np.arange(1, gridSize), np.ones(gridSize - 1) * (gridSize - 1))
-        ).T
-        edgeC = np.vstack(
-            (
-                np.ones(gridSize - 1) * (gridSize - 1),
-                np.arange(gridSize - 2, -1, -1),
-            )
-        ).T
-        edgeD = np.vstack(
-            (np.arange(gridSize - 2, 0, -1), np.zeros(gridSize - 2))
-        ).T
-        edges = np.vstack((edgeA, edgeB, edgeC, edgeD))
-        for idx in range(len(edges)):
-            tmp_r = int(edges[idx, 0])
-            tmp_c = int(edges[idx, 1])
+
+        for idx in range(len(self.edges)):
+            tmp_r = int(self.edges[idx, 0])
+            tmp_c = int(self.edges[idx, 1])
             if neighborhood[tmp_r, tmp_c] > 0:
                 if p1 is None:
                     p1 = np.array([tmp_r, tmp_c])
@@ -113,8 +99,8 @@ class Discretize:
         pt = (int(pt[0]), int(pt[1]))
         vec = (int(vec[0]), int(vec[1]))
 
-        meanPixel = self.findMeanPixel(neighborhood)
-        return pt, vec, meanPixel
+       
+        return pt, vec
     
     def visualize_vector(self, mask_grabOK, pt, ptprime):
         mask_tmp = cv2.cvtColor(
@@ -128,34 +114,118 @@ class Discretize:
 
     def findContours(self, neighborhood):
         contours, hierarchy  = cv2.findContours(neighborhood, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        return len(contours)
+        return contours
 
     def isEndCable(self, neighborhood):
         # Assumes binary mask
-        return neighborhood.sum() == 0
+
+        return np.sum(neighborhood) == 0
+    
+    def computeInitRC(self,r,c):
+        gridSize = self.vector_grid_size
+        init_r = min(
+            max(0, r - int((gridSize - 1) / 2)),
+            self.maskH - 1,
+        )
+        init_c = min(
+            max(0, c - int((gridSize - 1) / 2)),
+            self.maskW - 1,
+        )
+
+        return init_r,init_c
+    
+    def computeEndRC(self,init_r,init_c):
+        gridSize = self.vector_grid_size
+
+        end_r = min(
+            max(0, init_r + gridSize),
+            self.maskH,
+        )
+        end_c = min(
+            max(0, init_c+gridSize),
+            self.maskW ,
+        )
+
+        return end_r,end_c
+    
+    def unit_vector(self,vector):
+        """ Returns the unit vector of the vector.  """
+        return vector / np.linalg.norm(vector)
+
+    def angle_between(self,v1, v2):
+        """ Returns the angle in radians between vectors 'v1' and 'v2'::
+
+                >>> angle_between((1, 0, 0), (0, 1, 0))
+                1.5707963267948966
+                >>> angle_between((1, 0, 0), (1, 0, 0))
+                0.0
+                >>> angle_between((1, 0, 0), (-1, 0, 0))
+                3.141592653589793
+        """
+        v1_u = self.unit_vector(v1)
+        v2_u = self.unit_vector(v2)
+        return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
 
     def slideWindow(self):
-        # given point (r,c) find mean_r, mean_c in neighborhood, store mean_r, mean_c
-        # find tangentVector in neighbohood
-        # move to next neighborhood based on the tangentVector
-        # cur_row = self.startPosition[0]
-        # cur_col = self.startPosition[1]
-        # init_r = min(
-        #     max(0, cur_row - int((self.windowSize - 1) / 2)), self.maskH - 1
-        # )
-        # init_c = min(
-        #     max(0, cur_col - int((self.windowSize - 1) / 2)), self.maskW - 1
-        # )
-        # neighborhood = self.cableMask[
-        #     init_r : init_r + self.windowSize, init_c : init_c + self.windowSize
-        # ]
-        # meanPixel = self.findMeanPixel(neighborhood)
-        # self.resultPixel.append(meanPixel)
-        # tangentVector = self.findTangent(neighborhood)
-
-        # nextPoint = np.array([init_r, init_c]) + tangentVector
-        while not self.isEndCable():
+        gridSize = self.vector_grid_size
+        while True:
+            if self.discretized_r == None:
+                id = np.random.choice(np.arange(self.idx.shape[0]))
+                r = self.idx[id, 0]  # row coordinate in the cropped mask
+                c = self.idx[id, 1]
+                init_r,init_c = self.computeInitRC(r,c)
+                end_r,end_c = self.computeEndRC(init_r,init_c)
+                # self.discretized_r = init_r
+                # self.discretized_c = init_c
+                # neighborhood = self.mask_rimOff[
+                # init_r : init_r + gridSize, init_c : init_c + gridSize
+                # ]
+        
+            else:
+                init_r,init_c = self.computeInitRC(self.discretized_r,self.discretized_c)
+                end_r,end_c = self.computeEndRC(init_r,init_c)
             
+
+            neighborhood = self.mask_rimOff[
+            init_r : end_r, init_c : end_c
+            ]
+            idx_neighborhood = np.argwhere(neighborhood > 0)
+ 
+            if self.isEndCable(neighborhood):
+                break
+           
+            #later on filter out small countours
+            contours = self.findContours(neighborhood)
+            for contour in contours:
+                (x,y,w,h) = cv2.boundingRect(contour)
+
+
+            if len(contours) == 1:
+                island = neighborhood[y:y+h,x:x+w]
+                idx_island = np.argwhere(island > 0)
+                pt, vec1 = self.findVector(island,idx_island)
+            else:
+                pt,vec1 = self.findVector(neighborhood,idx_neighborhood)
+                
+            vec2 = -vec1
+            angle1 = self.angle_between(vec1,self.prev_vec)
+            angle2 = self.angle_between(vec2,self.prev_vec)
+            if angle1<angle2:
+                vec = vec1 
+            else:
+                vec = vec2 
+
+            self.prev_vec = vec        
+            centerR = int((init_r+end_r-1)/2)#int((pt[0] + vec[0])/2 )
+            centerC = int((init_c+end_c-1)/2)#int((pt[1] + vec[1])/2)
+            unitV = self.unit_vector(vec)
+            self.discretized_r = centerR + int(unitV[0]*gridSize)
+            self.discretized_c = centerC + int(unitV[1]*gridSize)
+
+            mean_pixel = self.findMeanPixel(neighborhood)  #x is col, y is row
+
+            self.resultPixels.append(mean_pixel)
 
         return
 

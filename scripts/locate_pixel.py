@@ -45,7 +45,7 @@ class locatePixel:
             return False
         return True
 
-    def iterateImage(self):
+    def iterateImage(self, filter_cluttered_area=True):
         erosion_size = 5
         element = cv2.getStructuringElement(
             cv2.MORPH_ELLIPSE,
@@ -57,21 +57,16 @@ class locatePixel:
 
         # self.mask_targetColor = np.where(self.mask_targetColor>0, 250, 0)
         idx = np.argwhere(self.mask_targetColor > 0)
-        # self.mask_targetColor = np.zeros_like(self.mask_targetColor, dtype=np.uint8)
-        # self.mask_targetColor[idx[:,0], idx[:,1]] = 255
-        # print(idx.shape[0])
-        # cv2.imshow("img",self.mask_targetColor )
-        # cv2.waitKey(0)
-
         for id in idx:
             # print(i)
             r = id[0]
             c = id[1]
-            if self.isBoundaryEmptyOfOtherCables(r, c):
+            if filter_cluttered_area:
+                if self.isBoundaryEmptyOfOtherCables(r, c):
+                    self.result[r, c] = 255
+            else:
                 self.result[r, c] = 255
-
-        # final = cv2.bitwise_or(self.mask_targetColor,self.mask_targetColor,mask = self.result)
-        return self.result
+        return self.result.astype(np.uint8)
 
     def calcDistance(self, x1, y1, x2, y2):
         result = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))

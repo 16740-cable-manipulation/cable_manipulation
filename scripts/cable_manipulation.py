@@ -47,8 +47,7 @@ class CableManipulation:
             ) = self.preprocessImage(inputImage, color)
 
             LP = locatePixel(mask_oneColor, mask_allOther, 55)
-            mask_grabOK = LP.iterateImage()
-            # TODO check if this mask is valid
+            mask_grabOK = LP.iterateImage(filter_cluttered_area=False)
             if self.is_mask_valid(mask_grabOK):
                 res[color] = mask_grabOK
         return res
@@ -156,14 +155,8 @@ class CableManipulation:
                 if self.use_rs is True:
                     self.realsense.close()
                 quit(1)
-        init_r = min(
-            max(0, r - int((gridSize - 1) / 2)),
-            self.image_height - 1,
-        )
-        init_c = min(
-            max(0, c - int((gridSize - 1) / 2)),
-            self.image_width - 1,
-        )
+        init_r = min(max(0, r - int((gridSize - 1) / 2)), self.image_height - 1)
+        init_c = min(max(0, c - int((gridSize - 1) / 2)), self.image_width - 1)
         neighborhood = mask_grabOK[
             init_r : init_r + gridSize, init_c : init_c + gridSize
         ]
@@ -201,6 +194,7 @@ class CableManipulation:
                 else:
                     if idx - p1_idx > gridSize:
                         p2 = np.array([tmp_r, tmp_c])
+                        break
         if p1 is None or p2 is None:
             return None
         vec = np.floor(np.flip((p2 - p1)))

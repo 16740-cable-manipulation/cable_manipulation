@@ -3,6 +3,7 @@ import json
 import copy
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 
 POS_UP = 0
 POS_DOWN = 1
@@ -304,14 +305,14 @@ class CableGraph:
     def __init__(self):
         # a collection of graphs, one for each cable
         self.graphs = {}
-        self.compound_graph = Graph()
+        self.compound_graph = None
 
     def create_compound_graph(self):
-        graph_prev = None
         for _, graph in self.graphs.items():
-            if graph_prev is not None:
-                self.compound_graph = graph.compose(graph_prev)
-            graph_prev = graph
+            if self.compound_graph is not None:
+                self.compound_graph = self.compound_graph.compose(graph)
+            else:
+                self.compound_graph = copy.deepcopy(graph)
 
     def create_graphs(self, cables_data):
         """Create a graph for each cable, where the crossings and the fixed
@@ -387,7 +388,7 @@ class CableGraph:
         return graph
 
 
-if __name__ == "__main__":
+def test_graph():
     # test building a graph for two cables
     cg = CableGraph()
     coords1 = np.array(
@@ -434,4 +435,19 @@ if __name__ == "__main__":
     print(cg.graphs["cable1"].get_succ(6, pos=POS_UP))
     print(cg.graphs["cable2"].get_next_fixed_keypoint(12))
     print(cg.compound_graph.get_crossings())
+    cg.compound_graph.visualize()
+
+
+if __name__ == "__main__":
+    cg = CableGraph()
+    from cable_discretization import getCablesDataFromImage
+
+    img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
+    cables_data = getCablesDataFromImage(img)
+    print(cables_data)
+    cg.create_graphs(cables_data)
+    cg.graphs["red"].visualize()
+    cg.graphs["blue"].visualize()
+    cg.graphs["yellow"].visualize()
+    cg.create_compound_graph()
     cg.compound_graph.visualize()

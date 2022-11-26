@@ -63,7 +63,7 @@ class Discretize:
             neighborhood = neighborhood.mean(-1)
 
         if len(contours) == 1:
-            print("1 island")
+            # print("1 island")
             mesh_x, mesh_y = np.meshgrid(
                 list(range(len(neighborhood[0]))),
                 list(range(len(neighborhood))),
@@ -74,7 +74,7 @@ class Discretize:
             return [mean_x, mean_y]
 
         elif len(contours) == 2:
-            print("2 islands")
+            # print("2 islands")
             res = []
             ws = []
             hs = []
@@ -220,7 +220,7 @@ class Discretize:
         return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
     def slideWindowOneDir(
-        self, _discretized_r=None, _discretized_c=None, _dir=None
+        self, _discretized_r=None, _discretized_c=None, _dir=None, vis=False
     ):
         gridSize = self.window_size
         discretized_r = copy.deepcopy(_discretized_r)
@@ -237,12 +237,13 @@ class Discretize:
             init_r, init_c = self.computeInitRC(discretized_r, discretized_c)
             end_r, end_c = self.computeEndRC(init_r, init_c)
             # visualize current window
-            self.visualize_window(
-                self.cableMask,
-                [[init_c, init_r], [end_c, end_r]],
-                [discretized_c, discretized_r],
-                [int(_dir[1] * gridSize), int(_dir[0] * gridSize)],
-            )
+            if vis:
+                self.visualize_window(
+                    self.cableMask,
+                    [[init_c, init_r], [end_c, end_r]],
+                    [discretized_c, discretized_r],
+                    [int(_dir[1] * gridSize), int(_dir[0] * gridSize)],
+                )
             # slided window
             discretized_r = self.init_slide_r + int(_dir[0] * gridSize)
             discretized_c = self.init_slide_c + int(_dir[1] * gridSize)
@@ -317,16 +318,17 @@ class Discretize:
 
             discretized_r = mean_pixel[1] + int(unitV[0] * gridSize)
             discretized_c = mean_pixel[0] + int(unitV[1] * gridSize)
-
+            if vis:
+                self.visualize_window(
+                    self.cableMask,
+                    [[init_c, init_r], [end_c, end_r]],
+                    mean_pixel,
+                    [int(unitV[1] * gridSize), int(unitV[0] * gridSize)],
+                )
+        if vis:
             self.visualize_window(
-                self.cableMask,
-                [[init_c, init_r], [end_c, end_r]],
-                mean_pixel,
-                [int(unitV[1] * gridSize), int(unitV[0] * gridSize)],
+                self.cableMask, [[init_c, init_r], [end_c, end_r]]
             )
-        self.visualize_window(
-            self.cableMask, [[init_c, init_r], [end_c, end_r]]
-        )
         print("exited from slide window")
 
     def slideWindow(self):

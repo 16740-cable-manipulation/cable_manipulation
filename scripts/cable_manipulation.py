@@ -45,9 +45,10 @@ class CableManipulation:
                 result_image,
                 result_image2,
             ) = self.preprocessImage(inputImage, color)
-
             LP = locatePixel(mask_oneColor, mask_allOther, 55)
-            mask_grabOK = LP.iterateImage(filter_cluttered_area=False)
+            mask_grabOK = LP.iterateImage(
+                erosion_size=0, filter_cluttered_area=False
+            )
             if self.is_mask_valid(mask_grabOK):
                 res[color] = mask_grabOK
         return res
@@ -72,7 +73,7 @@ class CableManipulation:
         mask_grabOK = LP.iterateImage()
         res = self.findVector(mask_grabOK, inputDepth)
         if res is None:
-            RuntimeError("Nothing is found")
+            raise RuntimeError("Nothing is found")
             quit(1)
         pt, vec = res
         ptprime = (pt[0] + vec[0], pt[1] + vec[1])
@@ -100,7 +101,7 @@ class CableManipulation:
         idx = np.argwhere(mask_grabOK > 0)
         print("number of possible grasp points: ", len(idx))
         if len(idx) == 0:
-            RuntimeError("Not enough grasp points")
+            raise RuntimeError("Not enough grasp points")
         if depth is None:
             sample = 0
             r = None
@@ -121,7 +122,9 @@ class CableManipulation:
                     break
                 sample += 1
                 if r is None:
-                    RuntimeError("Sampled 50 pixels, none has valid depth!")
+                    raise RuntimeError(
+                        "Sampled 50 pixels, none has valid depth!"
+                    )
                     if self.use_rs is True:
                         self.realsense.close()
                     quit(1)
@@ -151,7 +154,7 @@ class CableManipulation:
                         break
                 sample += 1
             if r is None:
-                RuntimeError("Sampled 50 pixels, none has valid depth!")
+                raise RuntimeError("Sampled 50 pixels, none has valid depth!")
                 if self.use_rs is True:
                     self.realsense.close()
                 quit(1)

@@ -66,10 +66,10 @@ class CableSimplePolicy:
         while len(self.cg.compound_graph.get_crossings()) > 0:
             vals = self.realsense.getFrameSet(skip_frames=5)
             if vals is None:
-                RuntimeError("Failed to get frameset")
+                raise RuntimeError("Failed to get frameset")
                 quit(1)
             depth, bgr = vals
             if self.unweave_step(bgr, depth) is False:
-                RuntimeError("Cannot perform unweave step")
+                raise RuntimeError("Cannot perform unweave step")
                 quit(1)
         print("Done unweaving all cables")

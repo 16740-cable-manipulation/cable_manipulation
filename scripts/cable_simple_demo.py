@@ -30,7 +30,7 @@ if __name__ == "__main__":
     # 2.1 Take image
     vals = cable_manipulator.realsense.getFrameSet(skip_frames=5)
     if vals is None:
-        RuntimeError("Failed to get frameset")
+        raise RuntimeError("Failed to get frameset")
         quit(1)
     depth, bgr = vals
     print("depth_shape: ", depth.shape)
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     if (
         point_c[2] < 0.05 or point_c[2] > 1
     ):  # filter out points with wrong depth
-        RuntimeError("Bad pixel, no valid 3D coordinate!")
+        raise RuntimeError("Bad pixel, no valid 3D coordinate!")
 
     ptprime_tmp = [pixel[0] + vec[0], pixel[1] + vec[1]]
     print(ptprime_tmp)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     if (
         ptprime_tmp[2] < 0.05 or ptprime_tmp[2] > 1
     ):  # filter out points with wrong depth
-        RuntimeError("Bad vector, no valid 3D coordinate!")
+        raise RuntimeError("Bad vector, no valid 3D coordinate!")
     vec_c_3d = np.array(
         [[ptprime_tmp[0] - point_c[0], ptprime_tmp[1] - point_c[1], 0]]
     )

@@ -189,7 +189,7 @@ class Graph:
             free_nodes.append(id)
         elif self.is_crossing(id):
             if pos == POS_NONE:
-                RuntimeError(
+                raise RuntimeError(
                     "Need pos lable if the starting node is a crossing"
                 )
         while True:

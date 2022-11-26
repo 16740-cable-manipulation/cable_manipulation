@@ -18,7 +18,7 @@ class CableManipulation:
         self.rim_offset = (
             100  # for cropping the center area before selecting grasp point
         )
-        self.mask_valid_thresh = 100
+        self.mask_valid_thresh = 200
         self.vector_grid_dize = 41  # for computing the vector
         if self.use_rs is True:
             self.realsense = Realsense()

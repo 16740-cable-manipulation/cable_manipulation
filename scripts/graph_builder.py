@@ -387,49 +387,51 @@ class CableGraph:
         return graph
 
 
-# test building a graph for two cables
-cg = CableGraph()
-coords1 = np.array(
-    [
-        [0, 0],
-        [1, 1],
-        [2, 2],
-        [3, 3],
-        [3, 4],
-        [2, 5],
-        [1, 4],
-        [1, 3],
-        [2, 2],
-        [3, 2],
-        [4, 2],
-    ]
-)
-cx1 = [[2, 2], [3, 4], [1, 4]]
-coords1 = coords1.tolist()
-pos1 = [POS_NONE] * 11
-pos1[2] = POS_DOWN
-pos1[4] = POS_DOWN
-pos1[6] = POS_UP
-pos1[8] = POS_UP
-data1 = {"coords": coords1, "pos": pos1, "cx": cx1, "color": "blue"}
-# cables_data = {"cable1": data1}
-# cg.create_graphs(cables_data)
-# cg.graphs["cable1"].visualize()
+if __name__ == "__main__":
+    # test building a graph for two cables
+    cg = CableGraph()
+    coords1 = np.array(
+        [
+            [0, 0],
+            [1, 1],
+            [2, 2],
+            [3, 3],
+            [3, 4],
+            [2, 5],
+            [1, 4],
+            [1, 3],
+            [2, 2],
+            [3, 2],
+            [4, 2],
+        ]
+    )
+    cx1 = [[2, 2], [3, 4], [1, 4]]
+    coords1 = coords1.tolist()
+    pos1 = [POS_NONE] * 11
+    pos1[2] = POS_DOWN
+    pos1[4] = POS_DOWN
+    pos1[6] = POS_UP
+    pos1[8] = POS_UP
+    data1 = {"coords": coords1, "pos": pos1, "cx": cx1, "color": "blue"}
+    # cables_data = {"cable1": data1}
+    # cg.create_graphs(cables_data)
+    # cg.graphs["cable1"].visualize()
 
-coords2 = np.array([[0, 6], [0, 5], [1, 4], [2, 3.5], [3, 4], [4, 5], [5, 5]])
-cx2 = [[3, 4], [1, 4]]
-coords2 = coords2.tolist()
-pos2 = [POS_NONE] * 7
-pos2[2] = POS_DOWN
-pos2[4] = POS_UP
-data2 = {"coords": coords2, "pos": pos2, "cx": cx2, "color": "red"}
+    coords2 = np.array(
+        [[0, 6], [0, 5], [1, 4], [2, 3.5], [3, 4], [4, 5], [5, 5]]
+    )
+    cx2 = [[3, 4], [1, 4]]
+    coords2 = coords2.tolist()
+    pos2 = [POS_NONE] * 7
+    pos2[2] = POS_DOWN
+    pos2[4] = POS_UP
+    data2 = {"coords": coords2, "pos": pos2, "cx": cx2, "color": "red"}
 
-
-cables_data = {"cable1": data1, "cable2": data2}
-cg.create_graphs(cables_data)
-cg.create_compound_graph()
-print(cg.compound_graph.get_neighbors(2, pos=POS_DOWN))
-print(cg.graphs["cable1"].get_succ(6, pos=POS_UP))
-print(cg.graphs["cable2"].get_next_fixed_keypoint(12))
-print(cg.compound_graph.get_crossings())
-cg.compound_graph.visualize()
+    cables_data = {"cable1": data1, "cable2": data2}
+    cg.create_graphs(cables_data)
+    cg.create_compound_graph()
+    print(cg.compound_graph.get_neighbors(2, pos=POS_DOWN))
+    print(cg.graphs["cable1"].get_succ(6, pos=POS_UP))
+    print(cg.graphs["cable2"].get_next_fixed_keypoint(12))
+    print(cg.compound_graph.get_crossings())
+    cg.compound_graph.visualize()

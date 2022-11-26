@@ -4,6 +4,12 @@ import cv2
 import numpy as np
 import math
 from graph_builder import POS_DOWN, POS_UP, POS_NONE
+import copy
+
+
+def calcDistance(x1, y1, x2, y2):
+    result = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
+    return result
 
 
 class Discretize:
@@ -20,7 +26,7 @@ class Discretize:
         self.resultPixels = []
         # for cropping the center area before selecting grasp point
         self.rim_offset = 0  # not in use
-        self.window_size = 55  # for sliding window
+        self.window_size = 35  # for sliding window
 
         # dh = self.rim_offset
         # dw = self.rim_offset
@@ -29,8 +35,12 @@ class Discretize:
         # ]
         self.idx = np.argwhere(self.cableMask > 0)
 
-        self.discretized_r = None
-        self.discretized_c = None
+        # where the sliding started. might need to go back and attept the
+        # opposite direction
+        self.init_slide_r = None
+        self.init_slide_c = None
+        self.init_slide_vec = None
+
         self.prev_vec = np.array([0.0, -1.0])  # in np coord, points downward
 
         self.cx_other_map = {}  # {(x0,y0): {"green"}, (x1,y1): {"green","red"}}
@@ -167,11 +177,12 @@ class Discretize:
         )
         return contours
 
-    def isEndCable(self, neighborhood):
+    def isEndCable(self, neighborhood, idx_neighborhood):
         # Assumes binary mask
         return (
             neighborhood.shape[0] == 1
             or neighborhood.shape[1] == 1
+            or len(idx_neighborhood) < 15  # too few white pixels
             or np.sum(neighborhood) == 0
         )
 
@@ -208,10 +219,36 @@ class Discretize:
         v2_u = self.unit_vector(v2)
         return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
-    def slideWindow(self):
+    def slideWindowOneDir(
+        self, _discretized_r=None, _discretized_c=None, _dir=None
+    ):
         gridSize = self.window_size
+        discretized_r = copy.deepcopy(_discretized_r)
+        discretized_c = copy.deepcopy(_discretized_c)
+
+        # directly slide if the initial condition is passed in
+        if (
+            _dir is not None
+            and discretized_c is not None
+            and discretized_r is not None
+        ):
+            print("Sliding along the other direction")
+            # current window (just for visualization)
+            init_r, init_c = self.computeInitRC(discretized_r, discretized_c)
+            end_r, end_c = self.computeEndRC(init_r, init_c)
+            # visualize current window
+            self.visualize_window(
+                self.cableMask,
+                [[init_c, init_r], [end_c, end_r]],
+                [discretized_c, discretized_r],
+                [int(_dir[1] * gridSize), int(_dir[0] * gridSize)],
+            )
+            # slided window
+            discretized_r = self.init_slide_r + int(_dir[0] * gridSize)
+            discretized_c = self.init_slide_c + int(_dir[1] * gridSize)
+
         while True:
-            if self.discretized_r == None:
+            if discretized_r == None:
                 id = np.random.choice(np.arange(self.idx.shape[0]))
                 r = self.idx[id, 0]  # row coordinate in the cropped mask
                 c = self.idx[id, 1]
@@ -220,12 +257,13 @@ class Discretize:
 
             else:
                 init_r, init_c = self.computeInitRC(
-                    self.discretized_r, self.discretized_c
+                    discretized_r, discretized_c
                 )
                 end_r, end_c = self.computeEndRC(init_r, init_c)
 
             neighborhood = self.cableMask[init_r:end_r, init_c:end_c]
-            if self.isEndCable(neighborhood):
+            idx_neighborhood = np.argwhere(neighborhood > 0)
+            if self.isEndCable(neighborhood, idx_neighborhood):
                 break
 
             # later on filter out small countours
@@ -236,7 +274,6 @@ class Discretize:
                 idx_island = np.argwhere(island > 0)
                 vec1 = self.findVector_PCA(idx_island)
             elif len(contours) == 2:
-                idx_neighborhood = np.argwhere(neighborhood > 0)
                 vec1 = self.findVector_PCA(idx_neighborhood)
             else:
                 raise NotImplementedError(
@@ -252,9 +289,6 @@ class Discretize:
                 vec = vec1
             else:
                 vec = vec2
-            print(angle1, angle2, vec1, vec2)
-
-            self.prev_vec = vec  # here vec is float
 
             # Need to add offset to the mean pixel coordinates
             mean_pixel = self.findMeanPixel(
@@ -274,8 +308,15 @@ class Discretize:
                 self.pos.append(POS_NONE)
             # update window
             unitV = self.unit_vector(vec)
-            self.discretized_r = mean_pixel[1] + int(unitV[0] * gridSize)
-            self.discretized_c = mean_pixel[0] + int(unitV[1] * gridSize)
+
+            self.prev_vec = copy.deepcopy(unitV)
+            if self.init_slide_vec is None:
+                self.init_slide_vec = copy.deepcopy(unitV)
+                self.init_slide_r = mean_pixel[1]
+                self.init_slide_c = mean_pixel[0]
+
+            discretized_r = mean_pixel[1] + int(unitV[0] * gridSize)
+            discretized_c = mean_pixel[0] + int(unitV[1] * gridSize)
 
             self.visualize_window(
                 self.cableMask,
@@ -288,6 +329,17 @@ class Discretize:
         )
         print("exited from slide window")
 
+    def slideWindow(self):
+        self.slideWindowOneDir()
+        if self.init_slide_vec is not None:
+            self.slideWindowOneDir(
+                _discretized_r=self.init_slide_r,
+                _discretized_c=self.init_slide_c,
+                _dir=-self.init_slide_vec,
+            )
+        else:
+            raise RuntimeError("cannot slide along the other direction")
+
     def check_other_masks(self, cx, init_r, init_c, end_r, end_c):
         for color, mask in self.mask_others.items():
             neighborhood = mask[init_r:end_r, init_c:end_c]
@@ -299,19 +351,50 @@ class Discretize:
                 else:
                     self.cx_other_map[cx_tuple].add(color)
 
+    def refine_result(self, cx):
+        # find closest pixel to cx (a Tuple) from resultPixels
+        best_dist = None
+        best_pixel_idx = None
+        for i, pixel in enumerate(self.resultPixels):
+            dist = calcDistance(pixel[0], pixel[1], cx[0], cx[1])
+            if best_dist is None or dist < best_dist:
+                best_dist = dist
+                best_pixel_idx = i
+        # TODO check distance and decide whether to add a new pixel or override
+        # now we simply always override
+        if True:
+            # override
+            if self.pos[best_pixel_idx] == POS_NONE:
+                self.pos[best_pixel_idx] = POS_UP
+                if [cx[0], cx[1]] not in self.cx:
+                    self.cx.append([cx[0], cx[1]])
+                self.resultPixels[best_pixel_idx] = [cx[0], cx[1]]
+        else:
+            # add
+            pass
 
-def getCablesDataFromImage(self, img):
+
+def getCablesDataFromImage(img):
     """Generate cable data dictionary given an cv BGR image"""
     cables_data = {}
-
-    cable_manipulator = CableManipulation(640, 480, use_rs=False)
+    cables_disc = {}
+    img_w = img.shape[1]
+    img_h = img.shape[0]
+    cable_manipulator = CableManipulation(img_w, img_h, use_rs=False)
     available_masks = cable_manipulator.get_available_masks(img)
     for color in available_masks.keys():
         disc = Discretize(color, available_masks)
         disc.slideWindow()
+        cables_disc[color] = disc
+    # refine coordinates
+    for color, disc in cables_disc.items():
+        for cx, others in disc.cx_other_map.items():
+            for other in others:
+                cables_disc[other].refine_result(cx)
+
+    for color, disc in cables_disc.items():
         data = {
             "coords": disc.resultPixels,
-            # TODO
             "pos": disc.pos,
             "cx": disc.cx,
             "color": color,
@@ -322,9 +405,11 @@ def getCablesDataFromImage(self, img):
 
 if __name__ == "__main__":
     img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
-    cable_manipulator = CableManipulation(640, 480, use_rs=False)
-    available_masks = cable_manipulator.get_available_masks(img)
-    yellow_mask = available_masks["blue"]
-    disc = Discretize(yellow_mask)
-    disc.slideWindow()
+    # cable_manipulator = CableManipulation(640, 480, use_rs=False)
+    # available_masks = cable_manipulator.get_available_masks(img)
+    # yellow_mask = available_masks["blue"]
+    # disc = Discretize(yellow_mask)
+    # disc.slideWindow()
+    res = getCablesDataFromImage(img)
+    print(res)
 

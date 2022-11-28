@@ -7,7 +7,7 @@ from rs_driver import Realsense
 
 
 class CableSimplePolicy:
-    def __init__(self, use_rs):
+    def __init__(self, use_rs=False):
         self.cg = CableGraph()
         self.disc = Discretize()
         self.fa = MyFranka()
@@ -27,8 +27,8 @@ class CableSimplePolicy:
         """
         graph: Graph = self.cg[cableID]
 
-        next_id, cx_pos, nodes = graph.self.get_next_keypoint(
-            self.get_free_endpoint()
+        next_id, cx_pos, nodes = graph.get_next_keypoint(
+            graph.get_free_endpoint()
         )
         if len(nodes) == 0 or cx_pos == POS_DOWN:  # first crossing is undercx
             return None

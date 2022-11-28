@@ -408,13 +408,13 @@ def getCablesDataFromImage(img, vis=False):
             "width": img_w,
             "height": img_h,
         }
-        cables_data[color] = data
+        cables_data["cable_" + color] = data
     return cables_data
 
 
 if __name__ == "__main__":
-    img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
-    # img = cv2.imread("cableImages/IMG_6028.JPG")
+    # img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
+    img = cv2.imread("cableImages/generated_01.png")
     # img = cv2.resize(img, (640, 480))
     # cable_manipulator = CableManipulation(640, 480, use_rs=False)
     # available_masks = cable_manipulator.get_available_masks(img)

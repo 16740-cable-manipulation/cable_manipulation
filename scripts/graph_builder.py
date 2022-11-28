@@ -36,12 +36,21 @@ class Graph:
     then it is graspable.
     """
 
-    def __init__(self, free_endpoint=[], fixed_endpoint=[], cables=[]):
+    def __init__(
+        self,
+        width=640,
+        height=480,
+        free_endpoint=[],
+        fixed_endpoint=[],
+        cables=[],
+    ):
         self.G = nx.DiGraph(
             free_endpoint=copy.deepcopy(free_endpoint),
             fixed_endpoint=copy.deepcopy(fixed_endpoint),
             cables=copy.deepcopy(cables),
         )
+        self.width = width
+        self.height = height
 
     def save(self, save_path):
         """Save the graph to disk."""
@@ -247,6 +256,8 @@ class Graph:
             self.G.graph["fixed_endpoint"] + other.G.graph["fixed_endpoint"]
         )
         res.G.graph["cables"] = self.G.graph["cables"] + other.G.graph["cables"]
+        res.width = other.width
+        res.height = other.height
         return res
 
     def simplify(self):
@@ -273,17 +284,20 @@ class Graph:
             for id in self.get_nodes()
         ]
         widths = [
-            3.0
+            4.0
             if self.get_pos_label(edge[0], edge[1]) == POS_DOWN
             else 6.0
             if self.get_pos_label(edge[0], edge[1]) == POS_UP
-            else 1.0
+            else 2.0
             for edge in self.get_edges()
         ]
 
         pos = {}
         for id in self.get_nodes():
-            pos[id] = self.get_node_coords(id)
+            tmp_pos = self.get_node_coords(id)
+            # flip y coordinate
+            tmp_pos[1] = self.height - 1 - tmp_pos[1]
+            pos[id] = tmp_pos
 
         nx.draw(
             self.G,
@@ -321,7 +335,8 @@ class CableGraph:
         Input:
         ``cables_data``: dict of the form {cableID1: data1, cableID2: data2, },
         where data is a dict of the form
-        {"coords": coords, "pos": pos, "cx": cx, "color": color}
+        {"coords": coords, "pos": pos, "cx": cx, "color": color, 
+        "width": width, "height": height}
 
         coords: a N*2 2D list (not np array) of all N inter-connected
         discretization points along the cable, whose first coord is the
@@ -336,6 +351,8 @@ class CableGraph:
         be listed in cx.)
 
         color: a string representing the cable color.
+
+        width, heigh: image size
         """
         cx_coord_id_map = {}
         for cableID, data in cables_data.items():
@@ -343,8 +360,17 @@ class CableGraph:
             pos = data["pos"]
             cx = data["cx"]
             color = data["color"]
+            w = data["width"]
+            h = data["height"]
             graph = self.create_graph(
-                cableID, coords, pos, cx, cx_coord_id_map, color=color
+                cableID,
+                coords,
+                pos,
+                cx,
+                cx_coord_id_map,
+                color=color,
+                width=w,
+                height=h,
             )
             self.graphs[cableID] = graph
 
@@ -356,10 +382,12 @@ class CableGraph:
         cx,
         cx_coord_id_map,
         color="black",
+        width=640,
+        height=480,
         fixed_endpoint_id=None,
     ):
         assert len(coords) >= 3
-        graph = Graph(cables=[cableID])
+        graph = Graph(cables=[cableID], width=width, height=height)
         pred_id = None
         for i, coord in enumerate(coords):
             if i == 0 or i == len(coords) - 1:
@@ -413,7 +441,14 @@ def test_graph():
     pos1[4] = POS_DOWN
     pos1[6] = POS_UP
     pos1[8] = POS_UP
-    data1 = {"coords": coords1, "pos": pos1, "cx": cx1, "color": "blue"}
+    data1 = {
+        "coords": coords1,
+        "pos": pos1,
+        "cx": cx1,
+        "color": "blue",
+        "width": 20,
+        "height": 20,
+    }
     # cables_data = {"cable1": data1}
     # cg.create_graphs(cables_data)
     # cg.graphs["cable1"].visualize()
@@ -426,7 +461,14 @@ def test_graph():
     pos2 = [POS_NONE] * 7
     pos2[2] = POS_DOWN
     pos2[4] = POS_UP
-    data2 = {"coords": coords2, "pos": pos2, "cx": cx2, "color": "red"}
+    data2 = {
+        "coords": coords2,
+        "pos": pos2,
+        "cx": cx2,
+        "color": "red",
+        "width": 20,
+        "height": 20,
+    }
 
     cables_data = {"cable1": data1, "cable2": data2}
     cg.create_graphs(cables_data)

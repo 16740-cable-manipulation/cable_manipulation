@@ -331,13 +331,17 @@ class Discretize:
             )
         print("exited from slide window")
 
-    def slideWindow(self):
-        self.slideWindowOneDir()
+    def slideWindow(self, vis=False):
+        self.slideWindowOneDir(vis=vis)
         if self.init_slide_vec is not None:
+            # reverse previous nodes
+            self.resultPixels.reverse()
+            self.pos.reverse()
             self.slideWindowOneDir(
                 _discretized_r=self.init_slide_r,
                 _discretized_c=self.init_slide_c,
                 _dir=-self.init_slide_vec,
+                vis=vis,
             )
         else:
             raise RuntimeError("cannot slide along the other direction")
@@ -376,7 +380,7 @@ class Discretize:
             pass
 
 
-def getCablesDataFromImage(img):
+def getCablesDataFromImage(img, vis=False):
     """Generate cable data dictionary given an cv BGR image"""
     cables_data = {}
     cables_disc = {}
@@ -384,9 +388,10 @@ def getCablesDataFromImage(img):
     img_h = img.shape[0]
     cable_manipulator = CableManipulation(img_w, img_h, use_rs=False)
     available_masks = cable_manipulator.get_available_masks(img)
+
     for color in available_masks.keys():
         disc = Discretize(color, available_masks)
-        disc.slideWindow()
+        disc.slideWindow(vis=vis)
         cables_disc[color] = disc
     # refine coordinates
     for color, disc in cables_disc.items():
@@ -400,6 +405,8 @@ def getCablesDataFromImage(img):
             "pos": disc.pos,
             "cx": disc.cx,
             "color": color,
+            "width": img_w,
+            "height": img_h,
         }
         cables_data[color] = data
     return cables_data
@@ -407,11 +414,13 @@ def getCablesDataFromImage(img):
 
 if __name__ == "__main__":
     img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
+    # img = cv2.imread("cableImages/IMG_6028.JPG")
+    # img = cv2.resize(img, (640, 480))
     # cable_manipulator = CableManipulation(640, 480, use_rs=False)
     # available_masks = cable_manipulator.get_available_masks(img)
     # yellow_mask = available_masks["blue"]
     # disc = Discretize(yellow_mask)
     # disc.slideWindow()
-    res = getCablesDataFromImage(img)
+    res = getCablesDataFromImage(img, vis=True)
     print(res)
 

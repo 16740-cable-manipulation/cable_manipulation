@@ -182,7 +182,7 @@ class Discretize:
         return (
             neighborhood.shape[0] == 1
             or neighborhood.shape[1] == 1
-            or len(idx_neighborhood) < 15  # too few white pixels
+            or len(idx_neighborhood) < 20  # too few white pixels
             or np.sum(neighborhood) == 0
         )
 
@@ -219,12 +219,21 @@ class Discretize:
         v2_u = self.unit_vector(v2)
         return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
+    def is_end_mid(self, neighborhood):
+        edges = [neighborhood[:,0], neighborhood[0,:],neighborhood[-1,:],neighborhood[:,-1]]
+        cnt = 0
+        for edge in edges:
+            if edge.sum()>0:
+                cnt += 1
+        return cnt <= 1
+
     def slideWindowOneDir(
         self, _discretized_r=None, _discretized_c=None, _dir=None, vis=False
     ):
         gridSize = self.window_size
         discretized_r = copy.deepcopy(_discretized_r)
         discretized_c = copy.deepcopy(_discretized_c)
+        IS_MID_FLAG = False
 
         # directly slide if the initial condition is passed in
         if (
@@ -316,8 +325,18 @@ class Discretize:
                 self.init_slide_r = mean_pixel[1]
                 self.init_slide_c = mean_pixel[0]
 
-            discretized_r = mean_pixel[1] + int(unitV[0] * gridSize)
-            discretized_c = mean_pixel[0] + int(unitV[1] * gridSize)
+            if len(contours) == 1 and self.is_end_mid(neighborhood=neighborhood) and not IS_MID_FLAG:
+                IS_MID_FLAG = True
+                discretized_r = mean_pixel[1] + int(unitV[0] * gridSize * 0.5)
+                discretized_c = mean_pixel[0] + int(unitV[1] * gridSize * 0.5)
+
+            elif len(contours) == 1 and self.is_end_mid(neighborhood=neighborhood) and IS_MID_FLAG:
+                break
+            else:
+                discretized_r = mean_pixel[1] + int(unitV[0] * gridSize)
+                discretized_c = mean_pixel[0] + int(unitV[1] * gridSize)
+                IS_MID_FLAG = False
+
             if vis:
                 self.visualize_window(
                     self.cableMask,
@@ -451,15 +470,13 @@ def getCablesDataFromImage(img, vis=False):
 
 
 if __name__ == "__main__":
-    # img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
-    # img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/rs_cable_imgs/img005.png")
-    img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/generated_01.png")
+    img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
+    # img = cv2.imread("cableImages/generated_01.png")
 
-
-    cable_manipulator = CableManipulation(640, 480, use_rs=False)
+    img_w = img.shape[1]
+    img_h = img.shape[0]
+    cable_manipulator = CableManipulation(img_w, img_h, use_rs=False)
     available_masks = cable_manipulator.get_available_masks(img)
-    # yellow_mask = available_masks["yellow"]
-    # disc = Discretize(yellow_mask)
     disc = Discretize("blue",available_masks)
     disc.slideWindow()
     res = getCablesDataFromImage(img, vis=True)

@@ -249,12 +249,17 @@ class Graph:
     def compose(self, other: "Graph"):
         res = Graph()
         res.G = nx.compose(self.G, other.G)
+
         res.G.graph["free_endpoint"] = (
             self.G.graph["free_endpoint"] + other.G.graph["free_endpoint"]
         )
-        res.G.graph["fixed_endpoint"] = (
-            self.G.graph["fixed_endpoint"] + other.G.graph["fixed_endpoint"]
-        )
+        if (
+            self.G.graph["fixed_endpoint"][0]
+            != other.G.graph["fixed_endpoint"][0]
+        ):
+            res.G.graph["fixed_endpoint"] = (
+                self.G.graph["fixed_endpoint"] + other.G.graph["fixed_endpoint"]
+            )
         res.G.graph["cables"] = self.G.graph["cables"] + other.G.graph["cables"]
         res.width = other.width
         res.height = other.height
@@ -355,6 +360,7 @@ class CableGraph:
         width, heigh: image size
         """
         cx_coord_id_map = {}
+        fixed_endpoint_id = None
         for cableID, data in cables_data.items():
             coords = data["coords"]
             pos = data["pos"]
@@ -362,7 +368,7 @@ class CableGraph:
             color = data["color"]
             w = data["width"]
             h = data["height"]
-            graph = self.create_graph(
+            graph, fixed_endpoint_id = self.create_graph(
                 cableID,
                 coords,
                 pos,
@@ -371,6 +377,7 @@ class CableGraph:
                 color=color,
                 width=w,
                 height=h,
+                fixed_endpoint_id=fixed_endpoint_id,
             )
             self.graphs[cableID] = graph
 
@@ -391,13 +398,17 @@ class CableGraph:
         pred_id = None
         for i, coord in enumerate(coords):
             if i == 0 or i == len(coords) - 1:
-                id = graph.add_node(NODE_ENDPOINT, coord)
                 if i == 0:
+                    id = graph.add_node(NODE_ENDPOINT, coord)
                     graph.add_free_endpoint(id)
                 else:
-                    graph.add_edge(pred_id, id, pos[i - 1])
                     if fixed_endpoint_id is None:
+                        id = graph.add_node(NODE_ENDPOINT, coord)
                         fixed_endpoint_id = id
+                    else:
+                        id = fixed_endpoint_id
+                        graph.add_node_id(id, NODE_ENDPOINT, coord)
+                    graph.add_edge(pred_id, id, pos[i - 1])
                     graph.add_fixed_endpoint(fixed_endpoint_id)
             else:
                 if coord in cx:
@@ -413,7 +424,7 @@ class CableGraph:
                     graph.add_edge(pred_id, id, pos[i - 1])
             pred_id = id
         graph.set_all_edge_color(color)
-        return graph
+        return graph, fixed_endpoint_id
 
 
 def test_graph():
@@ -484,12 +495,12 @@ if __name__ == "__main__":
     cg = CableGraph()
     from cable_discretization import getCablesDataFromImage
 
-    img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
+    img = cv2.imread("cableImages/generated_01.png")
     cables_data = getCablesDataFromImage(img)
     print(cables_data)
     cg.create_graphs(cables_data)
-    cg.graphs["red"].visualize()
-    cg.graphs["blue"].visualize()
-    cg.graphs["yellow"].visualize()
+    cg.graphs["cable_red"].visualize()
+    cg.graphs["cable_blue"].visualize()
+    # cg.graphs["yellow"].visualize()
     cg.create_compound_graph()
     cg.compound_graph.visualize()

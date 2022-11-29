@@ -34,6 +34,9 @@ class CableSimplePolicy:
             return None
         if graph.is_fixed_endpoint(next_id):  # this cable is already done
             return Action(False)
+        next_id, nodes = graph.get_next_fixed_keypoint(
+            graph.get_free_endpoint()
+        )
         for node in nodes:
             # attemp to move this node to free space
             goal_coord = self.search_goal_coord(node, next_id)
@@ -42,6 +45,14 @@ class CableSimplePolicy:
         return None
 
     def search_goal_coord(self, grasp_point, pivot_point):
+        # draw a line from grasp point to pivot point
+
+        # draw a circle around pivot point
+
+        # define a cost function
+
+        # optimize the action
+
         return [0, 0]
 
     def unweave_step(self, bgr, depth):

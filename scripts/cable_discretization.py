@@ -41,7 +41,7 @@ class Discretize:
         self.init_slide_c = None
         self.init_slide_vec = None
 
-        self.prev_vec = np.array([0.0, -1.0])  # in np coord, points downward
+        self.prev_vec = np.array([1.0, 0.0])  # in np coord, points downward
 
         self.cx_other_map = {}  # {(x0,y0): {"green"}, (x1,y1): {"green","red"}}
         self.cx = []  # length equals number of crossings
@@ -345,7 +345,44 @@ class Discretize:
             )
         else:
             raise RuntimeError("cannot slide along the other direction")
+   
+    def slideWindowTopDown(self,vis = False):
+        mid = self.maskW/2
+        gridSize = self.window_size
+        start_row = int(self.maskH/9)
 
+        origin_mask = np.zeros((self.maskH,self.maskW), dtype="uint8")
+        #tmp = int(mid-gridSize/2):int(mid+gridSize/2)
+        origin_mask[0:start_row,:] = 255
+
+        start_region = cv2.bitwise_and(self.cableMask,origin_mask)
+        if vis:
+            cv2.imshow("mask of origin",start_region)
+            cv2.waitKey(0) # wait for ay key to exit window
+            cv2.destroyAllWindows() # close all windows
+        start_idx = np.argwhere(start_region > 0)
+        start_id = np.random.choice(np.arange(start_idx.shape[0]))
+        fixed_r = self.idx[start_id, 0]  # row coordinate in the cropped mask
+        fixed_c = self.idx[start_id, 1]
+
+
+        self.slideWindowOneDir(
+            _discretized_r=fixed_r,
+            _discretized_c=fixed_c,
+            _dir=None,
+            vis = vis)
+
+        self.resultPixels.reverse()
+        self.pos.reverse()
+        self.slideWindowOneDir(
+                _discretized_r=self.init_slide_r,
+                _discretized_c=self.init_slide_c,
+                _dir=-self.init_slide_vec,
+                vis=vis,
+            )
+
+        return
+    
     def check_other_masks(self, cx, init_r, init_c, end_r, end_c):
         for color, mask in self.mask_others.items():
             neighborhood = mask[init_r:end_r, init_c:end_c]
@@ -391,7 +428,8 @@ def getCablesDataFromImage(img, vis=False):
 
     for color in available_masks.keys():
         disc = Discretize(color, available_masks)
-        disc.slideWindow(vis=vis)
+        # disc.slideWindow(vis=vis)
+        disc.slideWindowTopDown(vis= vis)
         cables_disc[color] = disc
     # refine coordinates
     for color, disc in cables_disc.items():
@@ -414,13 +452,16 @@ def getCablesDataFromImage(img, vis=False):
 
 if __name__ == "__main__":
     # img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
-    img = cv2.imread("cableImages/generated_01.png")
-    # img = cv2.resize(img, (640, 480))
-    # cable_manipulator = CableManipulation(640, 480, use_rs=False)
-    # available_masks = cable_manipulator.get_available_masks(img)
-    # yellow_mask = available_masks["blue"]
+    # img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/rs_cable_imgs/img005.png")
+    img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/generated_01.png")
+
+
+    cable_manipulator = CableManipulation(640, 480, use_rs=False)
+    available_masks = cable_manipulator.get_available_masks(img)
+    # yellow_mask = available_masks["yellow"]
     # disc = Discretize(yellow_mask)
-    # disc.slideWindow()
+    disc = Discretize("blue",available_masks)
+    disc.slideWindow()
     res = getCablesDataFromImage(img, vis=True)
     print(res)
 

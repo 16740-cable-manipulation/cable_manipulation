@@ -184,6 +184,12 @@ class Graph:
         assert self.has_node(id)
         return copy.deepcopy(self.G.nodes[id]["coords"])
 
+    def compute_length(self, id1, id2):
+        assert self.has_node(id1) and self.has_node(id2)
+        pred = id1
+        while pred != id2:
+            succ = self.get_succ(pred)
+
     def get_next_keypoint(self, id, pos=POS_NONE):
         """Get the id of the next crossing or endpoint and the crossing pos. 
 

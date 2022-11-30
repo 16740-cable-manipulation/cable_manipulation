@@ -39,14 +39,16 @@ class CableSimplePolicy:
         )
         for node in nodes:
             # attemp to move this node to free space
-            goal_coord = self.search_goal_coord(node, next_id)
+            goal_coord = self.search_goal_coord(node, next_id, cableID)
             if goal_coord is not None:
                 return Action(True)
         return None
 
-    def search_goal_coord(self, grasp_point, pivot_point):
+    def search_goal_coord(self, grasp_point, pivot_point, cableID):
         # draw a line from grasp point to pivot point
-
+        # instead, calculate cable segment length
+        length = self.cg[cableID].compute_length(grasp_point, pivot_point)
+        
         # draw a circle around pivot point
 
         # define a cost function

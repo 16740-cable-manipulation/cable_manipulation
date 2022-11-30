@@ -1,15 +1,9 @@
 from cable_manipulation import CableManipulation
-import sys
 import cv2
 import numpy as np
-import math
 from graph_builder import POS_DOWN, POS_UP, POS_NONE
 import copy
-
-
-def calcDistance(x1, y1, x2, y2):
-    result = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
-    return result
+from utility import calcDistance
 
 
 class Discretize:

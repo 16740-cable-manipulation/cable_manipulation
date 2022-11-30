@@ -4,6 +4,7 @@ import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
+from utility import calcDistance
 
 POS_UP = 0
 POS_DOWN = 1
@@ -184,11 +185,24 @@ class Graph:
         assert self.has_node(id)
         return copy.deepcopy(self.G.nodes[id]["coords"])
 
-    def compute_length(self, id1, id2):
+    def compute_length(self, id1, id2, pos=POS_NONE):
+        """Compute the length of a cable segment from id1 to id2, where id1 is
+        before id2.
+        
+        If id1 is a crossing, pos will select the next direction
+        """
         assert self.has_node(id1) and self.has_node(id2)
         pred = id1
+        length = 0
         while pred != id2:
-            succ = self.get_succ(pred)
+            succ = self.get_succ(pred, pos=pos)[0]
+            pred_coord = self.get_node_coords(pred)
+            succ_coord = self.get_node_coords(succ)
+            length += calcDistance(
+                pred_coord[0], pred_coord[1], succ_coord[0], succ_coord[1]
+            )
+            pred = succ
+        return length
 
     def get_next_keypoint(self, id, pos=POS_NONE):
         """Get the id of the next crossing or endpoint and the crossing pos. 

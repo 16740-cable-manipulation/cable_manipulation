@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from graph_builder import POS_DOWN, POS_UP, POS_NONE
 import copy
-from utility import calcDistance
+from utility import calcDistance, unit_vector
 
 
 class Discretize:
@@ -209,8 +209,8 @@ class Discretize:
         angle_between((1, 0, 0), (-1, 0, 0))
         3.141592653589793
         """
-        v1_u = self.unit_vector(v1)
-        v2_u = self.unit_vector(v2)
+        v1_u = unit_vector(v1)
+        v2_u = unit_vector(v2)
         return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
     def is_end_mid(self, neighborhood):
@@ -316,7 +316,7 @@ class Discretize:
             else:
                 self.pos.append(POS_NONE)
             # update window
-            unitV = self.unit_vector(vec)
+            unitV = unit_vector(vec)
 
             self.prev_vec = copy.deepcopy(unitV)
             if self.init_slide_vec is None:

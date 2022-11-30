@@ -4,7 +4,7 @@ import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
-from utility import calcDistance
+from utility import calcDistance, is_line_segments_intersect
 
 POS_UP = 0
 POS_DOWN = 1
@@ -74,6 +74,16 @@ class Graph:
         self.G.add_node(id, type=type, coords=copy.deepcopy(coords))
         return id
 
+    def copy_node(self, other: "Graph", id):
+        assert self.has_node(id)
+        node_data = copy.deepcopy(self.G.nodes[id])
+        other.G.add_node(id, **node_data)
+
+    def copy_edge(self, other: "Graph", id1, id2):
+        assert self.has_edge(id1, id2)
+        edge_data = copy.deepcopy(self.G.edges[id1, id2])
+        other.G.add_edge(id1, id2, **edge_data)
+
     def add_node_id(self, id, type, coords=[]):
         self.G.add_node(id, type=type, coords=copy.deepcopy(coords))
 
@@ -112,6 +122,10 @@ class Graph:
     def get_free_endpoint(self):
         assert len(self.G.graph["free_endpoint"]) > 0
         return self.G.graph["free_endpoint"][0]
+
+    def get_fixed_endpoint(self):
+        assert len(self.G.graph["fixed_endpoint"]) > 0
+        return self.G.graph["fixed_endpoint"][0]
 
     def get_pos_label(self, id1, id2):
         assert self.has_edge(id1, id2)
@@ -285,8 +299,51 @@ class Graph:
         res.height = other.height
         return res
 
+    def build_subgraph(self, id1, id2, pos=POS_NONE):
+        """Build a subgraph from id1 to id2, where id1 is
+        before id2.
+        
+        If id1 is a crossing, pos will select the next direction
+        """
+        assert self.has_node(id1) and self.has_node(id2)
+        graph = Graph()
+        pred = id1
+        self.copy_node(graph, pred)
+        while pred != id2:
+            succ = self.get_succ(pred, pos=pos)[0]
+            self.copy_node(graph, succ)
+            self.copy_edge(graph, pred, succ)
+            pred = succ
+        return graph
+
     def simplify(self):
         pass
+
+    def get_num_crossings(self):
+        """Get the number of crossings within this graph"""
+        num = 0
+        for id in self.get_nodes():
+            if self.is_crossing(id):
+                num += 1
+        return num
+
+    def is_edge_intersect(self, edge1, edge2):
+        edge1_pt1 = self.get_node_coords(edge1[0])
+        edge1_pt2 = self.get_node_coords(edge1[1])
+        edge2_pt1 = self.get_node_coords(edge2[0])
+        edge2_pt2 = self.get_node_coords(edge2[1])
+        return is_line_segments_intersect(
+            edge1_pt1, edge1_pt2, edge2_pt1, edge2_pt2
+        )
+
+    def get_num_crossings_two_graphs(self, other: "Graph"):
+        """Get #cx by checking edge overlap regardless of node type"""
+        num = 0
+        for edge_this in self.get_edges():
+            for edge_that in other.get_edges():
+                if self.is_edge_intersect(edge_this, edge_that):
+                    num += 1
+        return num
 
     def visualize(self, save_path=None):
         colors = [
@@ -352,6 +409,17 @@ class CableGraph:
                 self.compound_graph = self.compound_graph.compose(graph)
             else:
                 self.compound_graph = copy.deepcopy(graph)
+
+    def create_compound_graph_except(self, cableID):
+        assert cableID in self.graphs.keys()
+        compound_graph = None
+        for cableid, graph in self.graphs.items():
+            if cableid != cableID:
+                if compound_graph is not None:
+                    compound_graph = compound_graph.compose(graph)
+                else:
+                    compound_graph = copy.deepcopy(graph)
+        return compound_graph  # a graph or none
 
     def create_graphs(self, cables_data):
         """Create a graph for each cable, where the crossings and the fixed
@@ -524,3 +592,8 @@ if __name__ == "__main__":
     # cg.graphs["yellow"].visualize()
     cg.create_compound_graph()
     cg.compound_graph.visualize()
+    g2 = cg.create_compound_graph_except("cable_red")
+    g2.visualize()
+    endid = cg.graphs["cable_blue"].get_fixed_endpoint()
+    subg = cg.graphs["cable_blue"].build_subgraph(27, endid)
+    subg.visualize()

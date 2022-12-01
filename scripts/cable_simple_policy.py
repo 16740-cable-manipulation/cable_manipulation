@@ -5,7 +5,7 @@ from cable_discretization import Discretize
 from action import Action
 from my_franka import MyFranka
 from rs_driver import Realsense
-from utility import get_rotation_matrix, unit_vector
+from utility import get_rotation_matrix, unit_vector, calcDistance
 from scipy.optimize import minimize_scalar
 
 
@@ -53,7 +53,7 @@ class CableSimplePolicy:
 
     def get_result_point(
         self, theta, length, grasp_point: np.ndarray, pivot_point: np.ndarray
-    ):
+    ) -> np.ndarray:
         zero_vec = unit_vector(grasp_point - pivot_point)
         # rotate zero_vec about the pivot point by theta
         rotated_vec = np.multiply(
@@ -74,6 +74,7 @@ class CableSimplePolicy:
         """Build two tmp graphs and compute #cx by checking edge intersects"""
         graph: Graph = self.cg.graphs[cableID]
         fixed_endpoint_id = graph.get_fixed_endpoint()
+        # from res point to pivot point then to fixed endpoint
         graph_this = graph.build_subgraph(pivot_point_id, fixed_endpoint_id)
         id_new = graph_this.add_node(NODE_FREE, coords=res_point)
         graph_this.add_edge(id_new, pivot_point_id, POS_NONE)
@@ -95,8 +96,9 @@ class CableSimplePolicy:
         grasp_point = np.array(graph.get_node_coords(grasp_point_id))
         pivot_point = np.array(graph.get_node_coords(pivot_point_id))
         thetas = np.linspace(-np.pi / 2, np.pi / 2, num=200)
-        theta_ranges = []
+        theta_ranges = {}  # {elim_num1: [[],[],..], elim_num2: [[],[],..]}
         theta_range_tmp = []
+        elim_num = 0
         for theta in thetas:
             res_point = self.get_result_point(
                 theta, length, grasp_point, pivot_point
@@ -107,23 +109,31 @@ class CableSimplePolicy:
                 # check #cx
                 num_cx_orig = self.cg.compound_graph.get_num_crossings()
                 num_cx_new = self.get_num_crossings(
-                    pivot_point_id, res_point, cableID
+                    pivot_point_id, res_point.tolist(), cableID
                 )
                 # minus one because the fixed endpoint was counted as a crossing
                 # in num_cx_new
-                if num_cx_orig > num_cx_new - 1:
+                tmp_elim_num = num_cx_orig - (num_cx_new - 1)
+                if tmp_elim_num > 0:
                     res_ok = True
+                    elim_num = tmp_elim_num
                     if len(theta_range_tmp) < 2:
                         theta_range_tmp.append(theta)
                     else:
                         theta_range_tmp[1] = theta
+            # reset theta range and elim num
             if res_ok is False:
                 if len(theta_range_tmp) == 2:
-                    theta_ranges.append(theta_range_tmp)
+                    if theta_ranges.get(elim_num) is None:
+                        theta_ranges[elim_num] = []
+                    theta_ranges[elim_num].append(theta_range_tmp)
                 theta_range_tmp = []
-        return theta_ranges
+                elim_num = 0
+        # only return the theta ranges with the biggest elim num
+        max_elim_num = np.max(list(theta_ranges.keys()))
+        return theta_ranges[max_elim_num]
 
-    def calc_cost(self, theta, length, grasp_point_id, keypoint_id, cableID):
+    def calc_cost(self, theta, length, grasp_point_id, pivot_point_id, cableID):
         """The cost is a weighted sum of
         1. Negative distance to other cables after the move
             (need a distance metric)
@@ -131,35 +141,42 @@ class CableSimplePolicy:
         """
         cost = 0
         graph: Graph = self.cg.graphs[cableID]
-        # TODO change the pivot point to the predecessor of the undercx
-        keypoint_id = 0  # TODO passed in
-        pivot_point_id = graph.get_pred(keypoint_id)
         pivot_point = np.array(graph.get_node_coords(pivot_point_id))
-        # from theoritical endpoint to pivot
-        graph_this = Graph()
-        graph.copy_node(graph_this, pivot_point_id)
+        # from theoritical endpoint (res point) to pivot, then to fixed endpoint
+        graph_this = graph.build_subgraph(
+            pivot_point_id, graph.get_fixed_endpoint()
+        )
         grasp_point = np.array(graph.get_node_coords(grasp_point_id))
         res_point = self.get_result_point(
             theta, length, grasp_point, pivot_point
         )
-        graph_this.grow_branch(res_point, pivot_point_id)
+        # dist between res and pivot devided by average edge length in graph
+        num_new_edges = calcDistance(
+            pivot_point[0], pivot_point[1], res_point[0], res_point[1]
+        ) / (
+            graph.compute_length(
+                graph.get_free_endpoint(), graph.get_fixed_endpoint()
+            )
+            / len(graph.get_edges())
+        )
+        graph_this.grow_branch(res_point, pivot_point_id, div=num_new_edges)
 
         for cableid, graph in self.cg.graphs.items():
             if cableid != cableID:
-                # TODO from another cable's free endpoint to pivot
-                subgraph_that = Graph()
-                dist_cost = -subgraph_this.calc_distance_between_graphs(
-                    subgraph_that
+                dist_cost = -graph_this.calc_distance_between_graphs(
+                    self.cg.graphs[cableid]
                 )
-                curv_cost = subgraph_this.calc_curvature(pivot_point_id)
+                curv_cost = graph_this.calc_curvature(pivot_point_id)
                 cost += (
                     self.weight_dist * dist_cost + self.weight_curv * curv_cost
                 )
         return cost
 
-    def search_goal_coord(self, grasp_point_id, pivot_point_id, cableID):
+    def search_goal_coord(self, grasp_point_id, keypoint_id, cableID):
         # imagine pulling tight the cable segment from grasp point to pivot
         graph: Graph = self.cg.graphs[cableID]
+        # the pivot point is the predecessor of the keypoint (an undercx)
+        pivot_point_id = graph.get_pred(keypoint_id)
         length = graph.compute_length(grasp_point_id, pivot_point_id)
 
         # draw a circle (or multiple arcs on a circle) around pivot point.

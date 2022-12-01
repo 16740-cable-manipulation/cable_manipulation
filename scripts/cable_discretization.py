@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from graph_builder import POS_DOWN, POS_UP, POS_NONE
 import copy
-from utility import calcDistance, unit_vector
+from utility import calcDistance, unit_vector, angle_between
 
 
 class Discretize:
@@ -195,24 +195,6 @@ class Discretize:
 
         return end_r, end_c
 
-    def unit_vector(self, vector):
-        """Returns the unit vector of the vector."""
-        return vector / np.linalg.norm(vector)
-
-    def angle_between(self, v1, v2):
-        """Returns the angle in radians between vectors 'v1' and 'v2'::
-
-        angle_between((1, 0, 0), (0, 1, 0))
-        1.5707963267948966
-        angle_between((1, 0, 0), (1, 0, 0))
-        0.0
-        angle_between((1, 0, 0), (-1, 0, 0))
-        3.141592653589793
-        """
-        v1_u = unit_vector(v1)
-        v2_u = unit_vector(v2)
-        return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-
     def is_end_mid(self, neighborhood):
         edges = [
             neighborhood[:, 0],
@@ -292,8 +274,8 @@ class Discretize:
                 break
             vec1 = vec1.astype(np.float64)
             vec2 = -vec1
-            angle1 = self.angle_between(vec1, self.prev_vec)
-            angle2 = self.angle_between(vec2, self.prev_vec)
+            angle1 = angle_between(vec1, self.prev_vec)
+            angle2 = angle_between(vec2, self.prev_vec)
             if angle1 < angle2:
                 vec = vec1
             else:
@@ -498,4 +480,3 @@ if __name__ == "__main__":
     # disc.slideWindow()
     res = getCablesDataFromImage(img, vis=False)
     print(res)
-

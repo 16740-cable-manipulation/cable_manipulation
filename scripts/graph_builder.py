@@ -4,7 +4,12 @@ import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
-from utility import calcDistance, is_line_segments_intersect
+from utility import (
+    calcDistance,
+    is_line_segments_intersect,
+    angle_between,
+    unit_vector,
+)
 
 POS_UP = 0
 POS_DOWN = 1
@@ -75,11 +80,13 @@ class Graph:
         return id
 
     def copy_node(self, other: "Graph", id):
+        """Copy a node from this graph to another graph"""
         assert self.has_node(id)
         node_data = copy.deepcopy(self.G.nodes[id])
         other.G.add_node(id, **node_data)
 
     def copy_edge(self, other: "Graph", id1, id2):
+        """Copy an edge from this graph to another graph"""
         assert self.has_edge(id1, id2)
         edge_data = copy.deepcopy(self.G.edges[id1, id2])
         other.G.add_edge(id1, id2, **edge_data)
@@ -202,7 +209,7 @@ class Graph:
     def compute_length(self, id1, id2, pos=POS_NONE):
         """Compute the length of a cable segment from id1 to id2, where id1 is
         before id2.
-        
+
         If id1 is a crossing, pos will select the next direction
         """
         assert self.has_node(id1) and self.has_node(id2)
@@ -218,12 +225,28 @@ class Graph:
             pred = succ
         return length
 
-    def get_next_keypoint(self, id, pos=POS_NONE):
-        """Get the id of the next crossing or endpoint and the crossing pos. 
+    def grow_branch(self, coords, id, div):
+        """Grow a branch from coords to id, where id is already in the graph.
 
-        Return the next keypoint and a list of free nodes starting from id, 
+        ``div``: number of divisions in this newly grown branch
+        """
+        assert self.has_node(id)
+        this_coord = self.get_node_coords(id)
+        edge_length = (
+            calcDistance(this_coord[0], this_coord[1], coords[0], coords[1])
+            / div
+        )
+        vec = unit_vector(np.array(this_coord) - np.array(coords))
+        for i in range(div):
+            # TODO
+            pass
+
+    def get_next_keypoint(self, id, pos=POS_NONE):
+        """Get the id of the next crossing or endpoint and the crossing pos.
+
+        Return the next keypoint and a list of free nodes starting from id,
         including id if id is free.
-        
+
         If the id is a crossing, ``pos`` argument has to be provided
         """
         if self.is_fixed_endpoint(id):
@@ -246,11 +269,11 @@ class Graph:
                 free_nodes.append(id)
 
     def get_next_fixed_keypoint(self, id, pos=POS_NONE):
-        """Get the id of the next undercrossing or fixed endpoint. 
+        """Get the id of the next undercrossing or fixed endpoint.
 
-        Return the next fixed keypoint and a list of free nodes starting from 
+        Return the next fixed keypoint and a list of free nodes starting from
         id, including id if id is free.
-        
+
         If the id is a crossing, ``pos`` argument has to be provided
         """
         next_id, cx_pos, nodes = self.get_next_keypoint(id, pos=pos)
@@ -302,7 +325,7 @@ class Graph:
     def build_subgraph(self, id1, id2, pos=POS_NONE):
         """Build a subgraph from id1 to id2, where id1 is
         before id2.
-        
+
         If id1 is a crossing, pos will select the next direction
         """
         assert self.has_node(id1) and self.has_node(id2)
@@ -315,6 +338,36 @@ class Graph:
             self.copy_edge(graph, pred, succ)
             pred = succ
         return graph
+
+    def find_nearest_node(self, coord):
+        best_dist = None
+        best_id = None
+        for id in self.get_nodes():
+            node_coord = self.get_node_coords(id)
+            dist = calcDistance(
+                node_coord[0], node_coord[1], coord[0], coord[1]
+            )
+            if best_dist is None or dist < best_dist:
+                best_dist = dist
+                best_dist = id
+        return best_dist, best_id
+
+    def calc_distance_between_graphs(self, other: "Graph"):
+        """For every node in a graph, find the closest node in the other
+        graph and compute the distance, (then average them)?"""
+        sum_dist = 0
+        for id_this in self.get_nodes():
+            dist, _ = other.find_nearest_node(self.get_node_coords(id_this))
+            sum_dist += dist
+        return sum_dist / len(self.get_nodes())
+
+    def calc_curvature(self, id, pos=POS_NONE):
+        """Currently this is calculating the angle at id, not curvature"""
+        assert self.has_node(id) and not self.is_endpoint(id)
+        node = np.array(self.get_node_coords(id))
+        succ = np.array(self.get_node_coords(self.get_succ(id, pos=pos)))
+        pred = np.array(self.get_node_coords(self.get_pred(id, pos=pos)))
+        return angle_between(succ - node, pred - node)
 
     def simplify(self):
         pass
@@ -428,7 +481,7 @@ class CableGraph:
         Input:
         ``cables_data``: dict of the form {cableID1: data1, cableID2: data2, },
         where data is a dict of the form
-        {"coords": coords, "pos": pos, "cx": cx, "color": color, 
+        {"coords": coords, "pos": pos, "cx": cx, "color": color,
         "width": width, "height": height}
 
         coords: a N*2 2D list (not np array) of all N inter-connected

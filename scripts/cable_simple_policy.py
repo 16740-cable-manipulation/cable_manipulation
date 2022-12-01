@@ -6,6 +6,7 @@ from action import Action
 from my_franka import MyFranka
 from rs_driver import Realsense
 from utility import get_rotation_matrix, unit_vector
+from scipy.optimize import minimize_scalar
 
 
 class CableSimplePolicy:
@@ -14,6 +15,8 @@ class CableSimplePolicy:
         self.disc = Discretize()
         self.fa = MyFranka()
         self.workspace = [(0, 0), (width, height)]  # top left, bot right
+        self.weight_dist = 1.0
+        self.weight_curv = 1.0
         self.use_rs = use_rs
         if self.use_rs is True:
             self.realsense = Realsense()
@@ -25,7 +28,7 @@ class CableSimplePolicy:
 
     def eliminate_crossing(self, cableID):
         """Attempt to eliminate the first crossing of a cable.
-        
+
         Return the action if exists, none o/w
         """
         graph: Graph = self.cg[cableID]
@@ -120,37 +123,39 @@ class CableSimplePolicy:
                 theta_range_tmp = []
         return theta_ranges
 
-    def calc_cost(self, theta, length, pivot_point, cableID):
-        """The cost is a weighted sum of 
-        1. Negative distance to other cables after the move 
+    def calc_cost(self, theta, length, grasp_point_id, keypoint_id, cableID):
+        """The cost is a weighted sum of
+        1. Negative distance to other cables after the move
             (need a distance metric)
         2. Curvature at the pivot point after the move
         """
-        return 0
+        cost = 0
+        graph: Graph = self.cg.graphs[cableID]
+        # TODO change the pivot point to the predecessor of the undercx
+        keypoint_id = 0  # TODO passed in
+        pivot_point_id = graph.get_pred(keypoint_id)
+        pivot_point = np.array(graph.get_node_coords(pivot_point_id))
+        # from theoritical endpoint to pivot
+        graph_this = Graph()
+        graph.copy_node(graph_this, pivot_point_id)
+        grasp_point = np.array(graph.get_node_coords(grasp_point_id))
+        res_point = self.get_result_point(
+            theta, length, grasp_point, pivot_point
+        )
+        graph_this.grow_branch(res_point, pivot_point_id)
 
-    def grad_dist(self, theta, length, pivot_point, cableID):
-        return 0
-
-    def grad_curv(self, theta, length, pivot_point, cableID):
-        return 0
-
-    def optimize_theta(self, theta_range, length, pivot_point, cableID):
-        alpha = 0.1  # step size
-        max_iter = 5000
-        eps = 1e-4
-        iter = 0
-        theta = np.random.uniform(low=theta_range[0], high=theta_range[1])
-        while iter < max_iter:
-            grad_total = 0
-            grad_dist = self.grad_dist(theta, length, pivot_point, cableID)
-            grad_curv = self.grad_curv(theta, length, pivot_point, cableID)
-            grad_total = 0.5 * grad_dist + 0.5 * grad_curv
-            if grad_total < eps:
-                break
-            iter = iter + 1
-            theta = theta - alpha * grad_total
-        cost = self.calc_cost(theta, length, pivot_point, cableID)
-        return theta, cost
+        for cableid, graph in self.cg.graphs.items():
+            if cableid != cableID:
+                # TODO from another cable's free endpoint to pivot
+                subgraph_that = Graph()
+                dist_cost = -subgraph_this.calc_distance_between_graphs(
+                    subgraph_that
+                )
+                curv_cost = subgraph_this.calc_curvature(pivot_point_id)
+                cost += (
+                    self.weight_dist * dist_cost + self.weight_curv * curv_cost
+                )
+        return cost
 
     def search_goal_coord(self, grasp_point_id, pivot_point_id, cableID):
         # imagine pulling tight the cable segment from grasp point to pivot
@@ -165,11 +170,15 @@ class CableSimplePolicy:
         thetas = []
         costs = []
         for theta_range in theta_ranges:
-            theta, cost = self.optimize_theta(
-                theta_range, length, pivot_point_id, cableID
+            res = minimize_scalar(
+                self.calc_cost,
+                args=(length, pivot_point_id, cableID),
+                bounds=theta_range,
+                method="bounded",
             )
-            thetas.append(theta)
-            costs.append(cost)
+            if res.status is True:
+                thetas.append(res.x)
+                costs.append(res.fun)
         theta = thetas[np.argmin(costs)]
         return theta
 

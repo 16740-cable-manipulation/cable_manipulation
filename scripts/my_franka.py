@@ -54,7 +54,7 @@ class MyFranka:
             "R": np.array(
                 [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
             ),
-            "t": np.array([0.3, 0.0, 0.4]),
+            "t": np.array([0.4, 0.0, 0.4]),
         }
         self.goto_pose(home_pose, use_impedance=False)
         time.sleep(self.time_per_move)

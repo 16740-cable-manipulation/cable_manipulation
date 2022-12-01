@@ -119,14 +119,7 @@ class CableManipulation:
                     and c + size < self.image_width - 2 * self.rim_offset
                     and c - size >= 0
                 ):
-                    break
-                sample += 1
-                if r is None:
-                    raise RuntimeError(
-                        "Sampled 50 pixels, none has valid depth!"
-                    )
-                    if self.use_rs is True:
-                        self.realsense.close()
+                    breakg
                     quit(1)
 
         else:

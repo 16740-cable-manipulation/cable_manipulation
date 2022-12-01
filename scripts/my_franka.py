@@ -115,4 +115,13 @@ class MyFranka:
         time.sleep(2)
 
     def exe_action(action: Action):
+        # grasp action.pick_3d
+
+        # lift to action.z
+
+        # move to a point above action.place_3d, with height z
+
+        # lower to table
+
+        # ungrasp
         pass

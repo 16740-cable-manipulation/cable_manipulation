@@ -225,6 +225,16 @@ class Graph:
             pred = succ
         return length
 
+    def calc_tangent_vec(self, id):
+        assert self.has_node(id)
+        pred = np.array(self.get_node_coords(self.get_pred(id)))
+        succ = np.array(self.get_node_coords(self.get_succ(id)))
+        this_coord = np.array(self.get_node_coords(id))
+        return (
+            (unit_vector(succ - this_coord) + unit_vector(this_coord - pred))
+            / 2
+        ).tolist()
+
     def grow_branch(self, coords, id, div=1):
         """Grow a branch from coords to id, where id is already in the graph.
         The newly added nodes have float coordinates

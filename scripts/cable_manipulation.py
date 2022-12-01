@@ -122,12 +122,11 @@ class CableManipulation:
                     break
                 sample += 1
                 if r is None:
+                    if self.use_rs is True:
+                        self.realsense.close()
                     raise RuntimeError(
                         "Sampled 50 pixels, none has valid depth!"
                     )
-                    if self.use_rs is True:
-                        self.realsense.close()
-                    quit(1)
 
         else:
             sample = 0
@@ -154,10 +153,9 @@ class CableManipulation:
                         break
                 sample += 1
             if r is None:
-                raise RuntimeError("Sampled 50 pixels, none has valid depth!")
                 if self.use_rs is True:
                     self.realsense.close()
-                quit(1)
+                raise RuntimeError("Sampled 50 pixels, none has valid depth!")
         init_r = min(max(0, r - int((gridSize - 1) / 2)), self.image_height - 1)
         init_c = min(max(0, c - int((gridSize - 1) / 2)), self.image_width - 1)
         neighborhood = mask_grabOK[
@@ -212,7 +210,7 @@ class CableManipulation:
             vec = -vec
         pt = (int(pt[0]), int(pt[1]))
         vec = (int(vec[0]), int(vec[1]))
-        return pt, vec
+        return pt, vec  # in cv coord
 
     def visualize_vector(self, mask_grabOK, pt, ptprime):
         mask_tmp = cv2.cvtColor(

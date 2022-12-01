@@ -225,21 +225,40 @@ class Graph:
             pred = succ
         return length
 
-    def grow_branch(self, coords, id, div):
-        """Grow a branch from coords to id, where id is already in the graph.
-
-        ``div``: number of divisions in this newly grown branch
-        """
+    def calc_tangent_vec(self, id):
         assert self.has_node(id)
-        this_coord = self.get_node_coords(id)
+        pred = np.array(self.get_node_coords(self.get_pred(id)))
+        succ = np.array(self.get_node_coords(self.get_succ(id)))
+        this_coord = np.array(self.get_node_coords(id))
+        return (
+            (unit_vector(succ - this_coord) + unit_vector(this_coord - pred))
+            / 2
+        ).tolist()
+
+    def grow_branch(self, coords, id, div=1):
+        """Grow a branch from coords to id, where id is already in the graph.
+        The newly added nodes have float coordinates
+
+        ``div``: number of edges in this newly grown branch
+        """
+        assert self.has_node(id) and div > 0
+        last_coord = self.get_node_coords(id)
         edge_length = (
-            calcDistance(this_coord[0], this_coord[1], coords[0], coords[1])
+            calcDistance(last_coord[0], last_coord[1], coords[0], coords[1])
             / div
         )
-        vec = unit_vector(np.array(this_coord) - np.array(coords))
+        vec = unit_vector(np.array(last_coord) - np.array(coords)) * edge_length
+        this_coord = np.array(coords)
+        this_id = self.add_node(NODE_FREE, coords=this_coord.tolist())
         for i in range(div):
-            # TODO
-            pass
+            if i < div - 1:
+                next_coord = this_coord + vec * i
+                next_id = self.add_node(NODE_FREE, coords=next_coord.tolist())
+                self.add_edge(this_id, next_id, pos=POS_NONE)
+                this_id = next_id
+                this_coord = next_coord
+            else:  # for the last edge, just connect to the id
+                self.add_edge(this_id, id, pos=POS_NONE)
 
     def get_next_keypoint(self, id, pos=POS_NONE):
         """Get the id of the next crossing or endpoint and the crossing pos.

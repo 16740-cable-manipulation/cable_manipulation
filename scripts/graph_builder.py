@@ -69,10 +69,10 @@ class Graph:
         with open(save_path, "r") as f:
             self.G = nx.node_link_graph(json.load(f))
 
-    def add_edge(self, id1, id2, pos):
+    def add_edge(self, id1, id2, pos, color="black"):
         """Add an edge from id1 to id2"""
         assert self.has_node(id1) and self.has_node(id2)
-        self.G.add_edge(id1, id2, pos=pos)
+        self.G.add_edge(id1, id2, pos=pos, color=color)
 
     def add_node(self, type, coords=[]):
         id = self._generate_next_available_id()
@@ -146,15 +146,15 @@ class Graph:
         returned.
         """
         assert self.has_node(id)
-        return self.get_succ(id, pos=pos) + self.get_pred(id, pos=pos)
+        return [self.get_succ(id, pos=pos), self.get_pred(id, pos=pos)]
 
     def get_succ(self, id, pos=POS_NONE):
-        """Get a list of successor(s). If id is a crossing, pos will
+        """Get a single successor. If id is a crossing, pos will
         be the selection criterion"""
         assert self.has_node(id)
         ls = list(self.G.successors(id))
         if pos == POS_NONE:
-            return ls
+            return ls[0]
         else:
             return list(
                 filter(
@@ -162,15 +162,15 @@ class Graph:
                     or self.get_pos_label(id, succ) == POS_NONE,
                     ls,
                 )
-            )
+            )[0]
 
     def get_pred(self, id, pos=POS_NONE):
-        """Get a list of predecessor(s). If id is a crossing, pos will
+        """Get a single predecessor. If id is a crossing, pos will
         be the selection criterion"""
         assert self.has_node(id)
         ls = list(self.G.predecessors(id))
         if pos == POS_NONE:
-            return ls
+            return ls[0]
         else:
             return list(
                 filter(
@@ -178,7 +178,7 @@ class Graph:
                     or self.get_pos_label(pred, id) == POS_NONE,
                     ls,
                 )
-            )
+            )[0]
 
     def get_nodes(self):
         return list(self.G.nodes)
@@ -203,7 +203,7 @@ class Graph:
 
     def get_node_coords(self, id):
         """Return a deep copy of the coords list"""
-        assert self.has_node(id)
+        assert self.has_node(id), f"id = {id} not in graph"
         return copy.deepcopy(self.G.nodes[id]["coords"])
 
     def compute_length(self, id1, id2, pos=POS_NONE):
@@ -216,7 +216,7 @@ class Graph:
         pred = id1
         length = 0
         while pred != id2:
-            succ = self.get_succ(pred, pos=pos)[0]
+            succ = self.get_succ(pred, pos=pos)
             pred_coord = self.get_node_coords(pred)
             succ_coord = self.get_node_coords(succ)
             length += calcDistance(
@@ -267,20 +267,21 @@ class Graph:
         including id if id is free.
 
         If the id is a crossing, ``pos`` argument has to be provided
+        TODO this is buggy when pos isn't pos_none
         """
         if self.is_fixed_endpoint(id):
             return None, POS_NONE, []
         free_nodes = []
         if self.is_free(id):
             free_nodes.append(id)
-        elif self.is_crossing(id):
-            if pos == POS_NONE:
-                raise RuntimeError(
-                    "Need pos lable if the starting node is a crossing"
-                )
+        # elif self.is_crossing(id):
+        #     if pos == POS_NONE:
+        #         raise RuntimeError(
+        #             "Need pos lable if the starting node is a crossing"
+        #         )
         while True:
             pred = id
-            id = self.get_succ(id, pos=pos)[0]
+            id = self.get_succ(id, pos=pos)
             if not self.is_free(id):
                 cx_pos = self.get_pos_label(pred, id)
                 return id, cx_pos, free_nodes
@@ -294,6 +295,7 @@ class Graph:
         id, including id if id is free.
 
         If the id is a crossing, ``pos`` argument has to be provided
+        TODO this is buggy when pos isn't pos_none
         """
         next_id, cx_pos, nodes = self.get_next_keypoint(id, pos=pos)
         if (
@@ -303,9 +305,9 @@ class Graph:
         ):
             return next_id, nodes
         while True:
-            next_id, cx_pos, new_nodes = self.get_next_keypoint(
-                next_id, pos=cx_pos
-            )
+            # print(next_id, cx_pos)
+            # TODO handle self occlusion
+            next_id, cx_pos, new_nodes = self.get_next_keypoint(next_id)
             nodes.extend(new_nodes)
             if (
                 next_id is None
@@ -330,7 +332,9 @@ class Graph:
             self.G.graph["free_endpoint"] + other.G.graph["free_endpoint"]
         )
         if (
-            self.G.graph["fixed_endpoint"][0]
+            len(self.G.graph["fixed_endpoint"]) == 0
+            or len(other.G.graph["fixed_endpoint"]) == 0
+            or self.G.graph["fixed_endpoint"][0]
             != other.G.graph["fixed_endpoint"][0]
         ):
             res.G.graph["fixed_endpoint"] = (
@@ -352,7 +356,7 @@ class Graph:
         pred = id1
         self.copy_node(graph, pred)
         while pred != id2:
-            succ = self.get_succ(pred, pos=pos)[0]
+            succ = self.get_succ(pred, pos=pos)
             self.copy_node(graph, succ)
             self.copy_edge(graph, pred, succ)
             pred = succ
@@ -409,13 +413,24 @@ class Graph:
         )
 
     def get_num_crossings_two_graphs(self, other: "Graph"):
-        """Get #cx by checking edge overlap regardless of node type"""
+        """Get #cx by checking edge overlap regardless of node type
+        TODO this is not robust to edge cases"""
         num = 0
-        for edge_this in self.get_edges():
-            for edge_that in other.get_edges():
-                if self.is_edge_intersect(edge_this, edge_that):
+        this_edges = self.get_edges()
+        others_edges = other.get_edges()
+        composite_graph = self.compose(other)
+        num_cx_others = 0
+        cx_others = composite_graph.get_crossings()
+        for cx in cx_others:
+            if len(list(composite_graph.G.successors(cx))) >= 2:
+                num_cx_others += 1
+
+        for edge_this in this_edges:
+            for edge_that in others_edges:
+                if composite_graph.is_edge_intersect(edge_this, edge_that):
                     num += 1
-        return num
+        # print(num, num_cx_others)
+        return num - num_cx_others * 3
 
     def visualize(self, save_path=None):
         colors = [
@@ -430,17 +445,17 @@ class Graph:
             self.get_edge_color(edge[0], edge[1]) for edge in self.get_edges()
         ]
         sizes = [
-            1000
+            550
             if self.is_crossing(id)
-            else 700
+            else 400
             if self.is_endpoint(id)
-            else 500
+            else 300
             for id in self.get_nodes()
         ]
         widths = [
-            4.0
+            3.0
             if self.get_pos_label(edge[0], edge[1]) == POS_DOWN
-            else 6.0
+            else 5.0
             if self.get_pos_label(edge[0], edge[1]) == POS_UP
             else 2.0
             for edge in self.get_edges()
@@ -452,7 +467,9 @@ class Graph:
             # flip y coordinate
             tmp_pos[1] = self.height - 1 - tmp_pos[1]
             pos[id] = tmp_pos
-
+        fig = plt.figure(
+            1, figsize=(self.width * 2 / 102, self.height * 2 / 102), dpi=102
+        )
         nx.draw(
             self.G,
             pos=pos,
@@ -464,9 +481,10 @@ class Graph:
             font_weight="bold",
             node_size=sizes,
         )
-        plt.show()
         if save_path is not None:
             plt.savefig(save_path)
+        plt.show()
+        return save_path
 
 
 class CableGraph:
@@ -659,13 +677,18 @@ if __name__ == "__main__":
     cables_data = getCablesDataFromImage(img)
     print(cables_data)
     cg.create_graphs(cables_data)
-    cg.graphs["cable_red"].visualize()
-    cg.graphs["cable_blue"].visualize()
+    cg.graphs["cable_red"].visualize(save_path="cableGraphs/red.png")
+    cg.graphs["cable_blue"].visualize(save_path="cableGraphs/blue.png")
     # cg.graphs["yellow"].visualize()
     cg.create_compound_graph()
     cg.compound_graph.visualize()
     g2 = cg.create_compound_graph_except("cable_red")
     g2.visualize()
+
+    print(cg.graphs["cable_red"].G.graph["free_endpoint"])
+    print(cg.graphs["cable_red"].G.graph["fixed_endpoint"])
+    print(cg.graphs["cable_blue"].G.graph["free_endpoint"])
+    print(cg.graphs["cable_blue"].G.graph["fixed_endpoint"])
     endid = cg.graphs["cable_blue"].get_fixed_endpoint()
-    subg = cg.graphs["cable_blue"].build_subgraph(27, endid)
-    subg.visualize()
+    # subg = cg.graphs["cable_blue"].build_subgraph(27, endid)
+    # subg.visualize()

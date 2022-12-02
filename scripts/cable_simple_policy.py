@@ -1,19 +1,24 @@
 import numpy as np
+import cv2
 from graph_builder import Graph, CableGraph
 from graph_builder import POS_DOWN, POS_UP, POS_NONE, NODE_FREE
-from cable_discretization import Discretize
+from cable_discretization import getCablesDataFromImage
 from action import Action
-from my_franka import MyFranka
+
+# from my_franka import MyFranka
 from rs_driver import Realsense
 from utility import get_rotation_matrix, unit_vector, calcDistance
 from scipy.optimize import minimize_scalar
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.image as mpimg
+import matplotlib as mpl
 
 
 class CableSimplePolicy:
     def __init__(self, width, height, use_rs=False):
         self.cg = CableGraph()
-        self.disc = Discretize()
-        self.fa = MyFranka()
+        # self.fa = MyFranka()
         self.workspace = [(0, 0), (width, height)]  # top left, bot right
         self.weight_dist = 1.0
         self.weight_curv = 1.0
@@ -23,7 +28,7 @@ class CableSimplePolicy:
             self.realsense = Realsense()
 
     def gen_graph_from_image(self, img):
-        cable_data = self.disc.getCablesDataFromImage(img)
+        cable_data = getCablesDataFromImage(img)
         self.cg.create_graphs(cable_data)
         self.cg.create_compound_graph()
 
@@ -32,25 +37,35 @@ class CableSimplePolicy:
 
         Return the action if exists, none o/w
         """
-        graph: Graph = self.cg[cableID]
-
+        print("Attempting to eliminate a cx on # ", cableID)
+        graph: Graph = self.cg.graphs[cableID]
+        # graph.visualize(save_path=f"cableGraphs/{cableID}.png")
+        # print(graph.get_free_endpoint())
         next_id, cx_pos, nodes = graph.get_next_keypoint(
             graph.get_free_endpoint()
         )
+        # print(next_id, cx_pos, nodes)
         if len(nodes) == 0 or cx_pos == POS_DOWN:  # first crossing is undercx
+            print("First cx is undercx. ", cableID, " not movable")
             return None
         if graph.is_fixed_endpoint(next_id):  # this cable is already done
+            print("First cx is fixed endpoint. ", cableID, " already done")
             return Action(False)
-        # next_id, nodes = graph.get_next_fixed_keypoint(
-        #     graph.get_free_endpoint()
+
+        # test get next keypoint
+        next_id, nodes = graph.get_next_fixed_keypoint(
+            graph.get_free_endpoint()
+        )
+        # self.cg.compound_graph.visualize(
+        #     save_path="cableGraphs/composite_original.png"
         # )
-        for node in nodes:
+        for node in nodes[2:]:
             # attemp to move this node to free space
             goal_coord, goal_vec = self.search_goal_coord(
                 node, next_id, cableID
             )
             if goal_coord is not None:
-                # TODO fill in action params
+                # fill in action params (2d, except z)
                 action = Action(True)
                 action.pick_coord = node
                 action.place_coord = goal_coord
@@ -60,7 +75,14 @@ class CableSimplePolicy:
                 action.pick_vec = graph.calc_tangent_vec(node)
                 action.place_vec = goal_vec
                 return action
+        print("Could not find an action to eliminate cx on this cable")
         return None
+
+    def get_zero_theta_vector_angle(
+        self, grasp_point: np.ndarray, pivot_point: np.ndarray
+    ):
+        zero_vec = unit_vector(grasp_point - pivot_point)
+        return np.arctan2(zero_vec[1], zero_vec[0])
 
     def get_result_point(
         self, theta, length, grasp_point: np.ndarray, pivot_point: np.ndarray
@@ -71,7 +93,7 @@ class CableSimplePolicy:
         """
         zero_vec = unit_vector(grasp_point - pivot_point)
         # rotate zero_vec about the pivot point by theta
-        rotated_vec = np.multiply(
+        rotated_vec = np.matmul(
             get_rotation_matrix(theta), zero_vec.reshape((-1, 1)).flatten()
         )
         res_point = pivot_point + rotated_vec * length
@@ -85,18 +107,38 @@ class CableSimplePolicy:
             and point[1] < self.workspace[1][1]
         )
 
-    def get_num_crossings(self, pivot_point_id, res_point: list, cableID):
-        """Build two tmp graphs and compute #cx by checking edge intersects"""
+    def get_num_crossings(
+        self,
+        pivot_point_id,
+        grasp_point_id,
+        res_point: list,
+        cableID,
+        vis=False,
+        save=False,
+    ):
+        """Build two tmp graphs and compute #cx by checking edge intersects
+        Will not count the fixed end point
+        """
         graph: Graph = self.cg.graphs[cableID]
         fixed_endpoint_id = graph.get_fixed_endpoint()
         # from res point to pivot point then to fixed endpoint
         graph_this = graph.build_subgraph(pivot_point_id, fixed_endpoint_id)
-        id_new = graph_this.add_node(NODE_FREE, coords=res_point)
-        graph_this.add_edge(id_new, pivot_point_id, POS_NONE)
+        graph_this.add_node_id(grasp_point_id, NODE_FREE, coords=res_point)
+        graph_this.add_edge(grasp_point_id, pivot_point_id, POS_NONE)
 
         graph_others = self.cg.create_compound_graph_except(cableID)
-
-        return graph_this.get_num_crossings_two_graphs(graph_others)
+        num_other_cables = len(self.cg.graphs) - 1
+        save_path = f"cableGraphs/numcx_composite_pivot_{pivot_point_id}_grasp_{grasp_point_id}.png"
+        path = None
+        if vis is True:
+            composite_graph = graph_this.compose(graph_others)
+            if save is True:
+                path = composite_graph.visualize(save_path=save_path)
+            else:
+                composite_graph.visualize()
+        num_cx = graph_this.get_num_crossings_two_graphs(graph_others)
+        # also subtract repeated count at the fixed endpoint
+        return num_cx - num_other_cables, path
 
     def generate_action_space(
         self,
@@ -112,14 +154,17 @@ class CableSimplePolicy:
         # assume we limit the theta to -pi/2 ~ pi/2 deg
         # note: positive theta is clockwise (cuz it's in cv coord)
         # theta=0 is the line connecting pivot point to grasp point
+
         graph: Graph = self.cg.graphs[cableID]
         grasp_point = np.array(graph.get_node_coords(grasp_point_id))
         pivot_point = np.array(graph.get_node_coords(pivot_point_id))
-        thetas = np.linspace(-np.pi / 2, np.pi / 2, num=200)
+        thetas = np.linspace(-np.pi / 2, np.pi / 2, num=30)
+        thetas = np.hstack(([0], thetas))
         theta_ranges = {}  # {elim_num1: [[],[],..], elim_num2: [[],[],..]}
         theta_range_tmp = []
         elim_num = 0
-        for theta in thetas:
+        save_path = None
+        for i, theta in enumerate(thetas):
             # res_point is where we might place the grasped point
             res_point = self.get_result_point(
                 theta, grasp_length, grasp_point, pivot_point
@@ -134,12 +179,14 @@ class CableSimplePolicy:
                     theta, total_length, grasp_point, pivot_point
                 )
                 num_cx_orig = self.cg.compound_graph.get_num_crossings()
-                num_cx_new = self.get_num_crossings(
-                    pivot_point_id, res_point_free_endpoint.tolist(), cableID
+                num_cx_new, _ = self.get_num_crossings(
+                    pivot_point_id,
+                    grasp_point_id,
+                    res_point_free_endpoint.tolist(),
+                    cableID,
                 )
-                # minus one because the fixed endpoint was counted as a crossing
-                # in num_cx_new
-                tmp_elim_num = num_cx_orig - (num_cx_new - 1)
+
+                tmp_elim_num = num_cx_orig - num_cx_new
                 if tmp_elim_num > 0:
                     res_ok = True
                     elim_num = tmp_elim_num
@@ -147,6 +194,31 @@ class CableSimplePolicy:
                         theta_range_tmp.append(theta)
                     else:
                         theta_range_tmp[1] = theta
+                # debug
+                print("theta: ", theta, " num_cx_new: ", num_cx_new)
+                # _, _ = self.get_num_crossings(
+                #     pivot_point_id,
+                #     grasp_point_id,
+                #     res_point.tolist(),
+                #     cableID,
+                #     vis=True,
+                #     save=False,
+                # )
+            # for plotting
+            if False:
+                res_ok = False
+                theta_range_tmp = []
+                elim_num = 0
+                # plot the zero theta and save
+                _, save_path = self.get_num_crossings(
+                    pivot_point_id,
+                    grasp_point_id,
+                    res_point.tolist(),
+                    cableID,
+                    vis=True,
+                    save=True,
+                )
+                continue
             # reset theta range and elim num
             if res_ok is False:
                 if len(theta_range_tmp) == 2:
@@ -157,6 +229,48 @@ class CableSimplePolicy:
                 elim_num = 0
         # only return the theta ranges with the biggest elim num
         max_elim_num = np.max(list(theta_ranges.keys()))
+        # draw on fig the theta ranges
+        print("theta ranges: ")
+        print(theta_ranges)
+        angle0 = self.get_zero_theta_vector_angle(grasp_point, pivot_point)
+        # for plotting
+        if save_path is not None:
+            # load image
+            plt.figure()
+            plt.imshow(mpimg.imread(save_path))
+            # plt.plot(
+            #     2 * pivot_point[0] + 13,
+            #     2 * pivot_point[1] - 5,
+            #     color="red",
+            #     marker="o",
+            # )
+            cmap = cm.cool
+            for elim, theta_range in theta_ranges.items():
+                rgb = cmap(elim / 3)
+                for rang in theta_range:
+                    arc_angles = np.linspace(rang[0], rang[1], 50) + angle0
+                    arc_xs = 2 * (
+                        pivot_point[0]
+                        + 13
+                        + (grasp_length + 7) * np.cos(arc_angles)
+                    )
+                    arc_ys = 2 * (
+                        pivot_point[1]
+                        - 5
+                        + (grasp_length + 7) * np.sin(arc_angles)
+                    )
+                    plt.plot(arc_xs, arc_ys, color=rgb, lw=4)
+            bounds = [0, 1, 2, 3]
+            norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+            plt.colorbar(
+                cm.ScalarMappable(norm=norm, cmap=cmap),
+                label=r"|$V_{elim}$|",
+                orientation="vertical",
+            )
+            plt.savefig(
+                f"cableGraphs/composite_with_action_space_grasp_{grasp_point_id}_pivot_{pivot_point_id}.png"
+            )
+            plt.show()
         return theta_ranges[max_elim_num]
 
     def calc_cost(self, theta, length, grasp_point_id, pivot_point_id, cableID):
@@ -201,8 +315,11 @@ class CableSimplePolicy:
     def search_goal_coord(self, grasp_point_id, keypoint_id, cableID):
         # imagine pulling tight the cable segment from grasp point to pivot
         graph: Graph = self.cg.graphs[cableID]
+
         # the pivot point is the predecessor of the keypoint (an undercx)
         pivot_point_id = graph.get_pred(keypoint_id)
+        print("grasp: ", grasp_point_id, "pivot: ", pivot_point_id)
+
         grasp_length = graph.compute_length(grasp_point_id, pivot_point_id)
         total_length = graph.compute_length(
             graph.get_free_endpoint(), pivot_point_id
@@ -213,6 +330,8 @@ class CableSimplePolicy:
         theta_ranges = self.generate_action_space(
             grasp_point_id, pivot_point_id, grasp_length, total_length, cableID
         )
+        print(theta_ranges)
+        quit()
         thetas = []
         costs = []
         for theta_range in theta_ranges:
@@ -286,7 +405,7 @@ class CableSimplePolicy:
                         action.place_vec[1],
                         0,
                     ]
-                    self.fa.exe_action(action)
+                    # self.fa.exe_action(action)
                 return True
         return False
 
@@ -294,8 +413,8 @@ class CableSimplePolicy:
         if self.use_rs is False:
             print("Realsense not in use, returning")
             return
-        self.fa.reset_joint_and_gripper()
-        self.fa.goto_capture_pose()
+        # self.fa.reset_joint_and_gripper()
+        # self.fa.goto_capture_pose()
         while len(self.cg.compound_graph.get_crossings()) > 0:
             vals = self.realsense.getFrameSet(skip_frames=5)
             if vals is None:
@@ -304,3 +423,17 @@ class CableSimplePolicy:
             if self.unweave_step(bgr, depth) is False:
                 raise RuntimeError("Cannot find an action to unweave!")
         print("Done unweaving all cables")
+
+
+# test
+csp = CableSimplePolicy(270, 460, use_rs=False)
+img = cv2.imread("cableImages/generated_01.png")
+csp.gen_graph_from_image(img)
+action = csp.eliminate_crossing("cable_blue")
+print(action)
+
+# Plot action space
+
+# Plot subgraphs and print out grasp point id, kp id, pivot id, etc
+
+# Plot cost on each action subspace

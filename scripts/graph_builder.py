@@ -252,7 +252,7 @@ class Graph:
         this_id = self.add_node(NODE_FREE, coords=this_coord.tolist())
         for i in range(div):
             if i < div - 1:
-                next_coord = this_coord + vec * i
+                next_coord = this_coord + vec
                 next_id = self.add_node(NODE_FREE, coords=next_coord.tolist())
                 self.add_edge(this_id, next_id, pos=POS_NONE)
                 this_id = next_id
@@ -372,7 +372,7 @@ class Graph:
             )
             if best_dist is None or dist < best_dist:
                 best_dist = dist
-                best_dist = id
+                best_id = id
         return best_dist, best_id
 
     def calc_distance_between_graphs(self, other: "Graph"):
@@ -380,7 +380,9 @@ class Graph:
         graph and compute the distance, (then average them)?"""
         sum_dist = 0
         for id_this in self.get_nodes():
-            dist, _ = other.find_nearest_node(self.get_node_coords(id_this))
+            dist, id_that = other.find_nearest_node(
+                self.get_node_coords(id_this)
+            )
             sum_dist += dist
         return sum_dist / len(self.get_nodes())
 
@@ -692,3 +694,7 @@ if __name__ == "__main__":
     endid = cg.graphs["cable_blue"].get_fixed_endpoint()
     # subg = cg.graphs["cable_blue"].build_subgraph(27, endid)
     # subg.visualize()
+    dist = cg.graphs["cable_red"].calc_distance_between_graphs(
+        cg.graphs["cable_blue"]
+    )
+    print(dist)

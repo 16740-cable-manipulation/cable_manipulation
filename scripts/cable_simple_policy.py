@@ -59,7 +59,7 @@ class CableSimplePolicy:
         # self.cg.compound_graph.visualize(
         #     save_path="cableGraphs/composite_original.png"
         # )
-        for node in nodes[2:]:
+        for node in nodes:
             # attemp to move this node to free space
             goal_coord, goal_vec = self.search_goal_coord(
                 node, next_id, cableID
@@ -248,15 +248,17 @@ class CableSimplePolicy:
             for elim, theta_range in theta_ranges.items():
                 rgb = cmap(elim / 3)
                 for rang in theta_range:
-                    arc_angles = np.linspace(rang[0], rang[1], 50) + angle0
+                    arc_angles = (
+                        np.linspace(rang[0] - 0.14, rang[1] - 0.14, 50) + angle0
+                    )
                     arc_xs = 2 * (
                         pivot_point[0]
-                        + 13
+                        + 16
                         + (grasp_length + 7) * np.cos(arc_angles)
                     )
                     arc_ys = 2 * (
                         pivot_point[1]
-                        - 5
+                        - 7
                         + (grasp_length + 7) * np.sin(arc_angles)
                     )
                     plt.plot(arc_xs, arc_ys, color=rgb, lw=4)
@@ -331,7 +333,6 @@ class CableSimplePolicy:
             grasp_point_id, pivot_point_id, grasp_length, total_length, cableID
         )
         print(theta_ranges)
-        quit()
         thetas = []
         costs = []
         for theta_range in theta_ranges:

@@ -7,7 +7,7 @@ import os
 if __name__ == "__main__":
     image_cnt = 0
     realsense = Realsense()
-    root_path = "/home/student/cable_ws/src/cable_manipulation/cableImages/rs_cable_imgs"
+    root_path = "/home/student/cable_ws/src/cable_manipulation/cableImages/rs_cable_imgs2"
     while True:
         depth, bgr = realsense.getFrameSet()  # actually bgr, not rgb
         cv2.imshow("img", bgr)

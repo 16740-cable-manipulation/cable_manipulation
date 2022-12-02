@@ -114,11 +114,13 @@ class MyFranka:
         self.fa.close_gripper()
         time.sleep(2)
 
-    def exe_action(action: Action):
+    def exe_action(self, action: Action):
+        
         # grasp action.pick_3d
-
+        self.goto_point_and_vec(action.pick_3d, action.pick_vec_3d)
         # lift to action.z
-
+        curr_pose = self.fa.get_pose()
+        self.fa.goto_pose({"R":curr_pose['R'], 't': curr_pose + [0,0,action.z]})
         # move to a point above action.place_3d, with height z
 
         # lower to table

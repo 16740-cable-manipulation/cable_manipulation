@@ -70,7 +70,7 @@ class MyFranka:
         print(p)
         return p
 
-    def goto_point_and_vec(self, point_c, vec_c_3d):
+    def goto_point_and_vec(self, point_c, vec_c_3d, manipulate_gripper=True):
         # transform point to world frame
         tf_w_ee = self.get_pose()  # actually is tf_w_et
         T_w_ee = np.eye(4)
@@ -107,21 +107,27 @@ class MyFranka:
         p = {"R": T_w_et[:3, :3], "t": T_w_et[:3, 3]}
         print("T_w_et: ")
         print(T_w_et)
-        self.fa.goto_gripper(0.05)
+        if manipulate_gripper:
+            self.fa.goto_gripper(0.05)
         time.sleep(2)
         self.goto_pose(p, use_impedance=False)
         time.sleep(self.time_per_move)
-        self.fa.close_gripper()
+        if manipulate_gripper:
+            self.fa.close_gripper()
         time.sleep(2)
 
-    def exe_action(action: Action):
+    def exe_action(self, action: Action):
+        
         # grasp action.pick_3d
-
+        self.goto_point_and_vec(action.pick_3d, action.pick_vec_3d)
         # lift to action.z
-
+        curr_pose = self.fa.get_pose()
+        self.fa.goto_pose({"R":curr_pose['R'], 't': curr_pose + [0,0,action.z]})
         # move to a point above action.place_3d, with height z
-
+        self.goto_point_and_vec(action.place_3d + [0,0,action.z], action.place_vec_3d, False)
         # lower to table
+        self.goto_point_and_vec(action.place_3d, action.place_vec_3d, False)
 
         # ungrasp
-        pass
+        self.fa.goto_gripper(0.05)
+        self.reset_joint_and_gripper()

@@ -26,8 +26,8 @@ class CableManipulation:
     def preprocessImage(self, inputImage, targetColor):
         img = cv2.cvtColor(inputImage, cv2.COLOR_BGR2RGB)
 
-        blur_image = cv2.GaussianBlur(img, (3, 3), 0)
-        img_hsv = cv2.cvtColor(blur_image, cv2.COLOR_RGB2HSV)
+        # blur_image = cv2.GaussianBlur(img, (3, 3), 0)
+        img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
         mask_oneColor = self.seg.segmentFirstColor(img_hsv, targetColor)
         result_image = cv2.bitwise_and(img, img, mask=mask_oneColor)
 

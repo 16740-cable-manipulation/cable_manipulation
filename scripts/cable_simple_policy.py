@@ -480,8 +480,8 @@ class CableSimplePolicy:
             return
         # self.fa.reset_joint_and_gripper()
         self.fa.open_gripper()
-        self.fa.goto_capture_pose()
         while True:
+            self.fa.goto_capture_pose()
             vals = self.realsense.getFrameSet(skip_frames=5)
             if vals is None:
                 raise RuntimeError("Failed to get frameset")

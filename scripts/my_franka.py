@@ -20,7 +20,7 @@ ANGLE_CLIP = 1
 class MyFranka:
     def __init__(self):
         self.time_per_move = 3
-        self.small_z_offset = -0.025
+        self.small_z_offset = -0.02
         self.fa = FrankaArm()
         # transformation from fingertip of ee to center of ee
         self.T_ee_et = np.eye(4)

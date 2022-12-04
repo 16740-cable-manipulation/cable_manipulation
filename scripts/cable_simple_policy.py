@@ -51,6 +51,9 @@ class CableSimplePolicy:
         """
         print("Attempting to eliminate a cx on # ", cableID)
         graph: Graph = self.cg.graphs[cableID]
+        self.cg.compound_graph.visualize(
+            save_path="cableGraphs/composite_original.png"
+        )
         # graph.visualize(save_path=f"cableGraphs/{cableID}.png")
         # print(graph.get_free_endpoint())
         next_id, cx_pos, nodes = graph.get_next_keypoint(
@@ -68,10 +71,7 @@ class CableSimplePolicy:
         next_id, nodes = graph.get_next_fixed_keypoint(
             graph.get_free_endpoint()
         )
-        self.cg.compound_graph.visualize(
-            save_path="cableGraphs/composite_original.png"
-        )
-        for node in nodes[3:]:
+        for node in nodes:
             # attemp to move this node to free space
             goal_coord, goal_vec = self.search_goal_coord(
                 node, next_id, cableID
@@ -478,7 +478,7 @@ class CableSimplePolicy:
         if self.use_rs is False:
             print("Realsense not in use, returning")
             return
-        # self.fa.reset_joint_and_gripper()
+        self.fa.reset_joint_and_gripper()
         self.fa.open_gripper()
         while True:
             self.fa.goto_capture_pose()

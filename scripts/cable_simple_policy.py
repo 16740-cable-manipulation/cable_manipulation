@@ -32,8 +32,8 @@ class CableSimplePolicy:
         ]  # top left, bot right
         self.weight_dist = 1.0
         self.weight_curv = 60
-        self.rim = 30
-        self.lift_z = 0.1
+        self.rim = 40
+        self.lift_z = 0.06
         self.use_rs = use_rs
         if self.use_rs is True:
             self.realsense = Realsense()

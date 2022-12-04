@@ -19,7 +19,7 @@ class CableSegmentation:
 
         # segmentation thresholds for realsense images
         self.r_low = self.normalizeHSV(0, 35, 25)
-        self.r_high = self.normalizeHSV(20, 85, 50)
+        self.r_high = self.normalizeHSV(20, 90, 50)
 
         self.g_low = self.normalizeHSV(165, 75, 20)
         self.g_high = self.normalizeHSV(175, 100, 40)

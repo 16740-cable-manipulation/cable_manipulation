@@ -324,6 +324,13 @@ class Discretize:
             else:
                 discretized_r = mean_pixel[1] + int(unitV[0] * gridSize)
                 discretized_c = mean_pixel[0] + int(unitV[1] * gridSize)
+                if (
+                    discretized_r >= self.maskH - 5
+                    or discretized_r < 0
+                    or discretized_c >= self.maskW - 5
+                    or discretized_c < 0
+                ):
+                    break
                 IS_MID_FLAG = False
 
             if vis:
@@ -474,7 +481,9 @@ def getCablesDataFromImage(img, vis=False):
 
 if __name__ == "__main__":
     # img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
-    img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/rs_cable_imgs2/test.png")
+    img = cv2.imread(
+        "d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/rs_cable_imgs2/test.png"
+    )
 
     # img_w = img.shape[1]
     # img_h = img.shape[0]

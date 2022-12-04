@@ -119,8 +119,8 @@ class MyFranka:
         if tf_w_ee is None:  # use the current ee and camera pose as reference
             tf_w_ee = self.get_pose()  # actually is tf_w_et
         T_w_ee = np.eye(4)
-        T_w_ee[:3, :3] = tf_w_ee["R"]
-        T_w_ee[:3, 3] = tf_w_ee["t"]
+        T_w_ee[:3, :3] = copy.deepcopy(tf_w_ee["R"])
+        T_w_ee[:3, 3] = copy.deepcopy(tf_w_ee["t"])
         # print("translation: ", tf_w_ee["t"])
         point_c_homo = np.reshape(np.hstack((point_c, np.ones(1))), (-1, 1))
         # print(point_c_homo)

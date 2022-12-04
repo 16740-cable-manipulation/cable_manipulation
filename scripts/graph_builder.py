@@ -21,6 +21,8 @@ NODE_ENDPOINT = 5
 
 id_counter = -1
 
+DPI = 96
+
 
 class Graph:
     """Graph of a single cable
@@ -470,7 +472,7 @@ class Graph:
             tmp_pos[1] = self.height - 1 - tmp_pos[1]
             pos[id] = tmp_pos
         fig = plt.figure(
-            1, figsize=(self.width * 2 / 102, self.height * 2 / 102), dpi=102
+            1, figsize=(self.width * 2 / DPI, self.height * 2 / DPI), dpi=DPI
         )
         nx.draw(
             self.G,
@@ -675,26 +677,26 @@ if __name__ == "__main__":
     cg = CableGraph()
     from cable_discretization import getCablesDataFromImage
 
-    img = cv2.imread("cableImages/generated_01.png")
+    img = cv2.imread("cableImages/rs_cable_imgs2/img017.png")
     cables_data = getCablesDataFromImage(img)
     print(cables_data)
     cg.create_graphs(cables_data)
-    cg.graphs["cable_red"].visualize(save_path="cableGraphs/red.png")
-    cg.graphs["cable_blue"].visualize(save_path="cableGraphs/blue.png")
+    # cg.graphs["cable_red"].visualize(save_path="cableGraphs/red.png")
+    # cg.graphs["cable_blue"].visualize(save_path="cableGraphs/blue.png")
     # cg.graphs["yellow"].visualize()
     cg.create_compound_graph()
     cg.compound_graph.visualize()
-    g2 = cg.create_compound_graph_except("cable_red")
-    g2.visualize()
+    # g2 = cg.create_compound_graph_except("cable_red")
+    # g2.visualize()
 
-    print(cg.graphs["cable_red"].G.graph["free_endpoint"])
-    print(cg.graphs["cable_red"].G.graph["fixed_endpoint"])
-    print(cg.graphs["cable_blue"].G.graph["free_endpoint"])
-    print(cg.graphs["cable_blue"].G.graph["fixed_endpoint"])
-    endid = cg.graphs["cable_blue"].get_fixed_endpoint()
+    # print(cg.graphs["cable_red"].G.graph["free_endpoint"])
+    # print(cg.graphs["cable_red"].G.graph["fixed_endpoint"])
+    # print(cg.graphs["cable_blue"].G.graph["free_endpoint"])
+    # print(cg.graphs["cable_blue"].G.graph["fixed_endpoint"])
+    # endid = cg.graphs["cable_blue"].get_fixed_endpoint()
     # subg = cg.graphs["cable_blue"].build_subgraph(27, endid)
     # subg.visualize()
-    dist = cg.graphs["cable_red"].calc_distance_between_graphs(
-        cg.graphs["cable_blue"]
-    )
-    print(dist)
+    # dist = cg.graphs["cable_red"].calc_distance_between_graphs(
+    #     cg.graphs["cable_blue"]
+    # )
+    # print(dist)

@@ -8,11 +8,15 @@ from scipy.spatial.transform import Rotation as R
 import copy
 from action import Action
 
+GRIPPER_GRASP = 0
+GRIPPER_UNGRASP = 1
+GRIPPER_NONE = 2
+
 
 class MyFranka:
     def __init__(self):
         self.time_per_move = 3
-        self.small_z_offset = -0.015
+        self.small_z_offset = -0.005
         self.fa = FrankaArm()
         # transformation from fingertip of ee to center of ee
         self.T_ee_et = np.eye(4)
@@ -29,13 +33,21 @@ class MyFranka:
         print(T_ee_c)
         return T_ee_c
 
+    def open_gripper(self):
+        self.fa.goto_gripper(0.05)
+        time.sleep(2)
+
+    def close_gripper(self):
+        self.fa.close_gripper()
+        time.sleep(2)
+
     def reset_joint_and_gripper(self):
         self.fa.open_gripper()
         time.sleep(2)
         self.fa.reset_joints()
         time.sleep(self.time_per_move)
 
-    def goto_pose(self, pose, use_impedance=False):
+    def goto_pose(self, pose, sleep=2, use_impedance=False):
         assert type(pose) is dict
         rot = pose["R"]
         trans = pose["t"]
@@ -48,16 +60,16 @@ class MyFranka:
             to_frame="world",
         )
         self.fa.goto_pose(p, use_impedance=use_impedance)
+        time.sleep(sleep)
 
     def goto_capture_pose(self):
         home_pose = {
             "R": np.array(
                 [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
             ),
-            "t": np.array([0.42, 0.0, 0.57]),
+            "t": np.array([0.42, 0.0, 0.50]),
         }
-        self.goto_pose(home_pose, use_impedance=False)
-        time.sleep(self.time_per_move)
+        self.goto_pose(home_pose, sleep=self.time_per_move, use_impedance=False)
 
     def get_pose(self):
         """Pose of tip of ee in world frame"""
@@ -70,17 +82,19 @@ class MyFranka:
         print(p)
         return p
 
-    def goto_point_and_vec(self, point_c, vec_c_3d, manipulate_gripper=True):
+    def goto_point_and_vec(
+        self, point_c, vec_c_3d, manipulate_gripper=GRIPPER_NONE
+    ):
         # transform point to world frame
         tf_w_ee = self.get_pose()  # actually is tf_w_et
         T_w_ee = np.eye(4)
         T_w_ee[:3, :3] = tf_w_ee["R"]
         T_w_ee[:3, 3] = tf_w_ee["t"]
-        print("translation: ", tf_w_ee["t"])
+        # print("translation: ", tf_w_ee["t"])
         point_c_homo = np.reshape(np.hstack((point_c, np.ones(1))), (-1, 1))
-        print(point_c_homo)
+        # print(point_c_homo)
         p_et = np.matmul(self.T_ee_c, point_c_homo)
-        print(p_et)
+        # print(p_et)
         point_w = np.matmul(T_w_ee, p_et).flatten()[:3]
         print(point_w)
         vec_w = (
@@ -107,27 +121,42 @@ class MyFranka:
         p = {"R": T_w_et[:3, :3], "t": T_w_et[:3, 3]}
         print("T_w_et: ")
         print(T_w_et)
-        if manipulate_gripper:
-            self.fa.goto_gripper(0.05)
-        time.sleep(2)
-        self.goto_pose(p, use_impedance=False)
-        time.sleep(self.time_per_move)
-        if manipulate_gripper:
-            self.fa.close_gripper()
-        time.sleep(2)
+        if manipulate_gripper == GRIPPER_GRASP:
+            self.open_gripper()
+            self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
+            self.close_gripper()
+        elif manipulate_gripper == GRIPPER_UNGRASP:
+            self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
+            self.open_gripper()
+        else:
+            self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
 
     def exe_action(self, action: Action):
-        
-        # grasp action.pick_3d
-        self.goto_point_and_vec(action.pick_3d, action.pick_vec_3d)
-        # lift to action.z
-        curr_pose = self.fa.get_pose()
-        self.fa.goto_pose({"R":curr_pose['R'], 't': curr_pose + [0,0,action.z]})
-        # move to a point above action.place_3d, with height z
-        self.goto_point_and_vec(action.place_3d + [0,0,action.z], action.place_vec_3d, False)
-        # lower to table
-        self.goto_point_and_vec(action.place_3d, action.place_vec_3d, False)
 
-        # ungrasp
-        self.fa.goto_gripper(0.05)
-        self.reset_joint_and_gripper()
+        # grasp action.pick_3d
+        self.goto_point_and_vec(
+            action.pick_3d, action.pick_vec_3d, manipulate_gripper=GRIPPER_GRASP
+        )
+        # lift to action.z
+        curr_pose = self.get_pose()
+        self.goto_pose(
+            {
+                "R": curr_pose["R"],
+                "t": curr_pose["t"] + [0, 0, action.z],
+            }
+        )
+        # move to a point above action.place_3d, with height z
+        print("place_3d: ", action.place_3d)
+        self.goto_point_and_vec(
+            action.place_3d + [0, 0, action.z],
+            action.place_vec_3d,
+            manipulate_gripper=GRIPPER_NONE,
+        )
+        # lower to table and ungrasp
+        self.goto_point_and_vec(
+            action.place_3d,
+            action.place_vec_3d,
+            manipulate_gripper=GRIPPER_UNGRASP,
+        )
+        # home
+        self.goto_capture_pose()

@@ -1,3 +1,4 @@
+from tkinter import N
 import numpy as np
 import cv2
 from graph_builder import Graph, CableGraph
@@ -5,7 +6,7 @@ from graph_builder import POS_DOWN, POS_UP, POS_NONE, NODE_FREE
 from cable_discretization import getCablesDataFromImage
 from action import Action
 
-# from my_franka import MyFranka
+from my_franka import MyFranka
 from rs_driver import Realsense
 from utility import get_rotation_matrix, unit_vector, calcDistance
 from scipy.optimize import minimize_scalar
@@ -14,12 +15,21 @@ import matplotlib.cm as cm
 import matplotlib.image as mpimg
 import matplotlib as mpl
 
+UNWEAVE_IN_PROGRESS = 0
+UNWEAVE_ALL_DONE = 1
+UNWEAVE_FAIL = 2
+
 
 class CableSimplePolicy:
-    def __init__(self, width, height, use_rs=False):
+    def __init__(self, width=640, height=480, use_rs=False):
         self.cg = CableGraph()
-        # self.fa = MyFranka()
-        self.workspace = [(0, 0), (width, height)]  # top left, bot right
+        self.fa = MyFranka()
+        self.width = width
+        self.height = height
+        self.workspace = [
+            (0, 0),
+            (self.width, self.height),
+        ]  # top left, bot right
         self.weight_dist = 1.0
         self.weight_curv = 60
         self.rim = 30
@@ -29,7 +39,8 @@ class CableSimplePolicy:
             self.realsense = Realsense()
 
     def gen_graph_from_image(self, img):
-        cable_data = getCablesDataFromImage(img)
+        cable_data = getCablesDataFromImage(img, vis=True)
+        print(cable_data)
         self.cg.create_graphs(cable_data)
         self.cg.create_compound_graph()
 
@@ -52,7 +63,7 @@ class CableSimplePolicy:
         if graph.is_fixed_endpoint(next_id):  # this cable is already done
             print("First cx is fixed endpoint. ", cableID, " already done")
             return Action(False)
-
+        print(f"cable # {cableID} is movable")
         # test get next keypoint
         next_id, nodes = graph.get_next_fixed_keypoint(
             graph.get_free_endpoint()
@@ -66,11 +77,13 @@ class CableSimplePolicy:
                 node, next_id, cableID
             )
             print("goal: ", goal_coord, goal_vec)
-            quit()
+            if goal_coord is None:
+                continue
+
             if goal_coord is not None:
                 # fill in action params (2d, except z)
                 action = Action(True)
-                action.pick_coord = node
+                action.pick_coord = graph.get_node_coords(node)
                 action.place_coord = goal_coord
                 action.z = self.lift_z  # TODO should change with grasp length
                 # self.z_mult * graph.compute_length(node, next_id)
@@ -198,7 +211,14 @@ class CableSimplePolicy:
                     else:
                         theta_range_tmp[1] = theta
                 # debug
-                print("theta: ", theta, " num_cx_new: ", num_cx_new)
+                print(
+                    "theta: ",
+                    theta,
+                    " num_cx_new: ",
+                    num_cx_new,
+                    " num_cx_orig: ",
+                    num_cx_orig,
+                )
                 _, _ = self.get_num_crossings(
                     pivot_point_id,
                     grasp_point_id,
@@ -223,13 +243,16 @@ class CableSimplePolicy:
                 )
                 continue
             # reset theta range and elim num
-            if res_ok is False:
+            if res_ok is False or i == thetas.shape[0] - 1:
                 if len(theta_range_tmp) == 2:
                     if theta_ranges.get(elim_num) is None:
                         theta_ranges[elim_num] = []
                     theta_ranges[elim_num].append(theta_range_tmp)
                 theta_range_tmp = []
                 elim_num = 0
+
+        if not theta_ranges:
+            return None
         # only return the theta ranges with the biggest elim num
         max_elim_num = np.max(list(theta_ranges.keys()))
         # draw on fig the theta ranges
@@ -335,6 +358,8 @@ class CableSimplePolicy:
             grasp_point_id, pivot_point_id, grasp_length, total_length, cableID
         )
         print(theta_ranges)
+        if theta_ranges is None:
+            return None, None
         thetas = []
         costs = []
         fig, axs = plt.subplots(1, len(theta_ranges), squeeze=False)
@@ -394,7 +419,7 @@ class CableSimplePolicy:
         goal_vec = unit_vector(pivot_point - goal_coord)
         return goal_coord.tolist(), goal_vec.tolist()
 
-    def is_bad_3d_coord(point_c):
+    def is_bad_3d_coord(self, point_c):
         if (
             point_c[2] < 0.05 or point_c[2] > 1
         ):  # filter out points with wrong depth
@@ -404,10 +429,15 @@ class CableSimplePolicy:
 
     def unweave_step(self, bgr, depth):
         self.gen_graph_from_image(bgr)
+        num_done = 0
         for cableID in self.cg.graphs.keys():
             action = self.eliminate_crossing(cableID)
+            if num_done > 0 and action is not None and action.is_empty is False:
+                num_done = 0
             if action is not None:
-                if action.is_empty is False:
+                if action.is_empty is True:
+                    num_done += 1
+                else:
                     print("Found valid action")
                     pick_point_3d_c = self.realsense.deproject_pixel(
                         depth, action.pick_coord[0], action.pick_coord[1]
@@ -423,45 +453,72 @@ class CableSimplePolicy:
                     action.pick_3d = pick_point_3d_c
                     action.place_3d = place_point_3d_c
                     # for the direction vector, directly use the 2d vector
-                    action.pick_vec_3d = [
-                        action.pick_vec[0],
-                        action.pick_vec[1],
-                        0,
-                    ]
-                    action.place_vec_3d = [
-                        action.place_vec[0],
-                        action.place_vec[1],
-                        0,
-                    ]
-                    # self.fa.exe_action(action)
-                return True
-        return False
+                    action.pick_vec_3d = np.array(
+                        [
+                            action.pick_vec[0],
+                            action.pick_vec[1],
+                            0,
+                        ]
+                    )
+                    action.place_vec_3d = np.array(
+                        [
+                            action.place_vec[0],
+                            action.place_vec[1],
+                            0,
+                        ]
+                    )
+                    self.fa.exe_action(action)
+                    return UNWEAVE_IN_PROGRESS
+        if num_done == len(self.cg.graphs.keys()):
+            print("Unweaving all done. Stopping...")
+            return UNWEAVE_ALL_DONE
+        return UNWEAVE_FAIL
 
     def run(self):
         if self.use_rs is False:
             print("Realsense not in use, returning")
             return
         # self.fa.reset_joint_and_gripper()
-        # self.fa.goto_capture_pose()
-        while len(self.cg.compound_graph.get_crossings()) > 0:
+        self.fa.open_gripper()
+        self.fa.goto_capture_pose()
+        while True:
             vals = self.realsense.getFrameSet(skip_frames=5)
             if vals is None:
                 raise RuntimeError("Failed to get frameset")
             depth, bgr = vals
-            if self.unweave_step(bgr, depth) is False:
+            img_w = bgr.shape[1]
+            img_h = bgr.shape[0]
+            self.width = img_w
+            self.height = img_h
+            self.workspace = [
+                (0, 0),
+                (self.width, self.height),
+            ]
+            cv2.imshow("img", bgr)
+            cv2.waitKey(0)
+            cv2.imwrite("cableImages/rs_cable_imgs2/test.png", bgr)
+            res = self.unweave_step(bgr, depth)
+            if res is UNWEAVE_FAIL:
                 raise RuntimeError("Cannot find an action to unweave!")
+            elif res is UNWEAVE_ALL_DONE:
+                break
+            self.cg = CableGraph()
         print("Done unweaving all cables")
+        self.realsense.close()
 
 
 # test
-csp = CableSimplePolicy(270, 460, use_rs=False)
-img = cv2.imread("cableImages/generated_01.png")
-csp.gen_graph_from_image(img)
-action = csp.eliminate_crossing("cable_blue")
-print(action)
+def test_simple_policy():
+    img = cv2.imread("cableImages/rs_cable_imgs2/test.png")
+    img_w = img.shape[1]
+    img_h = img.shape[0]
+    csp = CableSimplePolicy(width=img_w, height=img_h, use_rs=False)
+    csp.gen_graph_from_image(img)
+    action = csp.eliminate_crossing("cable_yellow")
+    print(action)
 
-# Plot action space
 
-# Plot subgraphs and print out grasp point id, kp id, pivot id, etc
-
-# Plot cost on each action subspace
+if __name__ == "__main__":
+    csp = CableSimplePolicy(use_rs=True)
+    csp.run()
+    # test_simple_policy()

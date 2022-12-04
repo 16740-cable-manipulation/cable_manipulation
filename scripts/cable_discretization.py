@@ -474,7 +474,7 @@ def getCablesDataFromImage(img, vis=False):
 
 if __name__ == "__main__":
     # img = cv2.imread("cableImages/rs_cable_imgs/img005.png")
-    img = cv2.imread("cableImages/rs_cable_imgs2/test.png")
+    img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/rs_cable_imgs2/test.png")
 
     # img_w = img.shape[1]
     # img_h = img.shape[0]

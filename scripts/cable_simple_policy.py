@@ -39,7 +39,7 @@ class CableSimplePolicy:
             self.realsense = Realsense()
 
     def gen_graph_from_image(self, img):
-        cable_data = getCablesDataFromImage(img, vis=True)
+        cable_data = getCablesDataFromImage(img, vis=False)
         print(cable_data)
         self.cg.create_graphs(cable_data)
         self.cg.create_compound_graph()
@@ -180,6 +180,7 @@ class CableSimplePolicy:
         theta_range_tmp = []
         elim_num = 0
         save_path = None
+        use_min = False
         for i, theta in enumerate(thetas):
             # res_point is where we might place the grasped point
             res_point = self.get_result_point(
@@ -201,7 +202,8 @@ class CableSimplePolicy:
                     res_point_free_endpoint.tolist(),
                     cableID,
                 )
-
+                if num_cx_new < 0:
+                    use_min = True
                 tmp_elim_num = num_cx_orig - num_cx_new
                 if tmp_elim_num > 0:
                     res_ok = True
@@ -255,6 +257,7 @@ class CableSimplePolicy:
             return None
         # only return the theta ranges with the biggest elim num
         max_elim_num = np.max(list(theta_ranges.keys()))
+        min_elim_num = np.min(list(theta_ranges.keys()))
         # draw on fig the theta ranges
         angle0 = self.get_zero_theta_vector_angle(grasp_point, pivot_point)
         # for plotting
@@ -295,7 +298,11 @@ class CableSimplePolicy:
             )
             plt.savefig(f"cableGraphs/composite_with_action_space.png")
             plt.show()
-        return theta_ranges[max_elim_num]
+        return (
+            theta_ranges[min_elim_num]
+            if use_min
+            else theta_ranges[max_elim_num]
+        )
 
     def calc_cost(self, theta, length, grasp_point_id, pivot_point_id, cableID):
         """The cost is a weighted sum of

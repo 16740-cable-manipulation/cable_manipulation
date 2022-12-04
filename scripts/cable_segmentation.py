@@ -24,8 +24,8 @@ class CableSegmentation:
         self.g_low = self.normalizeHSV(165, 75, 20)
         self.g_high = self.normalizeHSV(175, 100, 40)
 
-        self.b_low = self.normalizeHSV(205, 40, 25)
-        self.b_high = self.normalizeHSV(220, 75, 50)
+        self.b_low = self.normalizeHSV(205, 40, 20)
+        self.b_high = self.normalizeHSV(225, 75, 50)
 
         self.y_low = self.normalizeHSV(35, 40, 25)
         self.y_high = self.normalizeHSV(50, 88, 70)

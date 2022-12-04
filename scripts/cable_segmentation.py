@@ -18,8 +18,8 @@ class CableSegmentation:
         # self.y_high = self.normalizeHSV(55, 85, 100)
 
         # segmentation thresholds for realsense images
-        self.r_low = self.normalizeHSV(0, 40, 25)
-        self.r_high = self.normalizeHSV(12, 85, 50)
+        self.r_low = self.normalizeHSV(0, 35, 25)
+        self.r_high = self.normalizeHSV(20, 85, 50)
 
         self.g_low = self.normalizeHSV(165, 75, 20)
         self.g_high = self.normalizeHSV(175, 100, 40)
@@ -27,8 +27,8 @@ class CableSegmentation:
         self.b_low = self.normalizeHSV(205, 40, 25)
         self.b_high = self.normalizeHSV(220, 75, 50)
 
-        self.y_low = self.normalizeHSV(35, 40, 30)
-        self.y_high = self.normalizeHSV(50, 80, 70)
+        self.y_low = self.normalizeHSV(35, 40, 25)
+        self.y_high = self.normalizeHSV(50, 88, 70)
 
     def normalizeHSV(self, h, s, v):
         # opencv's hsv value are 179.255.255

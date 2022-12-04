@@ -1,5 +1,6 @@
 from math import atan2
 import time
+from tkinter.messagebox import NO
 import numpy as np
 from autolab_core import RigidTransform
 from frankapy import FrankaArm
@@ -12,11 +13,14 @@ GRIPPER_GRASP = 0
 GRIPPER_UNGRASP = 1
 GRIPPER_NONE = 2
 
+ANGLE_WRAP = 0
+ANGLE_CLIP = 1
+
 
 class MyFranka:
     def __init__(self):
         self.time_per_move = 3
-        self.small_z_offset = -0.005
+        self.small_z_offset = -0.025
         self.fa = FrankaArm()
         # transformation from fingertip of ee to center of ee
         self.T_ee_et = np.eye(4)
@@ -82,11 +86,38 @@ class MyFranka:
         print(p)
         return p
 
+    def go_to_vec(self, theta):
+        tf_w_ee = self.get_pose()
+        T_w_et = np.eye(4)
+        T_w_et[:3, 3] = copy.deepcopy(tf_w_ee["t"])
+        T_w_et[:3, :3] = tf_w_ee["R"]
+        r_ee0_ee1 = R.from_euler("zyx", [theta, 0, 0]).as_matrix()
+        dT = np.eye(4)
+        dT[:3, :3] = r_ee0_ee1
+        T_w_et = np.matmul(T_w_et, dT)
+        home_pose = {
+            "R": T_w_et[:3, :3],
+            "t": T_w_et[:3, 3],
+        }
+        self.goto_pose(home_pose, sleep=self.time_per_move, use_impedance=False)
+
     def goto_point_and_vec(
-        self, point_c, vec_c_3d, manipulate_gripper=GRIPPER_NONE
+        self,
+        point_c,
+        vec_c_3d,
+        tf_w_ee=None,
+        manipulate_gripper=GRIPPER_NONE,
+        angle_mode=ANGLE_WRAP,
+        change_angle=False,
     ):
+        """``tf_w_ee``: if pass in a pose dict, the function will use this as reference
+        instead of the current ee and camera pose in world frame
+
+        ``change_angle``: if true, the pointing direction will be the vector direction + PI.
+        Then it will further be wrapped or clipped, depending on ``angle_mode``"""
         # transform point to world frame
-        tf_w_ee = self.get_pose()  # actually is tf_w_et
+        if tf_w_ee is None:  # use the current ee and camera pose as reference
+            tf_w_ee = self.get_pose()  # actually is tf_w_et
         T_w_ee = np.eye(4)
         T_w_ee[:3, :3] = tf_w_ee["R"]
         T_w_ee[:3, 3] = tf_w_ee["t"]
@@ -111,10 +142,21 @@ class MyFranka:
         T_w_et[:3, 3] = t_w_et
         r_w_ee0 = R.from_euler("zyx", [0, 0, np.pi])
         angle = -atan2(vec_w[1], vec_w[0])
-        if angle > np.pi / 2:
-            angle -= np.pi
-        if angle < -np.pi / 2:
+        if change_angle is True:  # flip vector direction
             angle += np.pi
+            if angle > np.pi:
+                angle -= 2 * np.pi
+        angle_changed = False
+        if angle_mode == ANGLE_WRAP:
+            if angle > np.pi / 2:
+                angle -= np.pi
+                angle_changed = True
+            elif angle < -np.pi / 2:
+                angle += np.pi
+                angle_changed = True
+        elif angle_mode == ANGLE_CLIP:
+            angle = np.clip(angle, -np.pi / 2, np.pi / 2)
+            angle_changed = True
         r_ee0_et = R.from_euler("zyx", [angle, 0, 0])
         R_w_et = np.matmul(r_w_ee0.as_matrix(), r_ee0_et.as_matrix())
         T_w_et[:3, :3] = R_w_et
@@ -130,12 +172,18 @@ class MyFranka:
             self.open_gripper()
         else:
             self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
+        return angle_changed
 
     def exe_action(self, action: Action):
-
+        # assume we're at capture pose
+        tf_w_ee = self.get_pose()
         # grasp action.pick_3d
-        self.goto_point_and_vec(
-            action.pick_3d, action.pick_vec_3d, manipulate_gripper=GRIPPER_GRASP
+        angle_changed = self.goto_point_and_vec(
+            action.pick_3d,
+            action.pick_vec_3d,
+            tf_w_ee=tf_w_ee,
+            manipulate_gripper=GRIPPER_GRASP,
+            angle_mode=ANGLE_WRAP,
         )
         # lift to action.z
         curr_pose = self.get_pose()
@@ -148,15 +196,25 @@ class MyFranka:
         # move to a point above action.place_3d, with height z
         print("place_3d: ", action.place_3d)
         self.goto_point_and_vec(
-            action.place_3d + [0, 0, action.z],
+            action.place_3d + [0, 0, -action.z],
             action.place_vec_3d,
+            tf_w_ee=tf_w_ee,
             manipulate_gripper=GRIPPER_NONE,
+            change_angle=angle_changed,
+            angle_mode=ANGLE_CLIP,
         )
         # lower to table and ungrasp
         self.goto_point_and_vec(
             action.place_3d,
             action.place_vec_3d,
+            tf_w_ee=tf_w_ee,
             manipulate_gripper=GRIPPER_UNGRASP,
+            change_angle=angle_changed,
+            angle_mode=ANGLE_CLIP,
         )
-        # home
-        self.goto_capture_pose()
+
+
+if __name__ == "__main__":
+    fa = MyFranka()
+    fa.reset_joint_and_gripper()
+    fa.go_to_vec(np.pi * 2 / 3)

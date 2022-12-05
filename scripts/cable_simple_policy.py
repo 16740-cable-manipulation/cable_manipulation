@@ -77,42 +77,39 @@ class CableSimplePolicy:
         next_id, nodes = graph.get_next_fixed_keypoint(
             graph.get_free_endpoint()
         )
-        for node in nodes:
-            # attemp to move this node to free space
-            goal_coord, goal_vec = self.search_goal_coord(
-                node, next_id, cableID
+        # for node in nodes:
+        # attemp to move this node to free space
+        grasp_point_id, goal_coord, goal_vec = self.search_goal_coord(
+            nodes, next_id, cableID
+        )
+        print("goal: ", goal_coord, goal_vec)
+        if goal_coord is not None:
+            # fill in action params (2d, except z)
+            action = Action(True)
+            pick_point = graph.get_node_coords(grasp_point_id)
+            action.pick_coord = pick_point
+            action.place_coord = goal_coord
+            pivot_point = graph.get_node_coords(next_id)
+            px_dist_pivot_pick = calcDistance(
+                pick_point[0], pick_point[1], pivot_point[0], pivot_point[1]
             )
-            print("goal: ", goal_coord, goal_vec)
-            if goal_coord is None:
-                continue
-
-            if goal_coord is not None:
-                # fill in action params (2d, except z)
-                action = Action(True)
-                pick_point = graph.get_node_coords(node)
-                action.pick_coord = pick_point
-                action.place_coord = goal_coord
-                pivot_point = graph.get_node_coords(next_id)
-                px_dist_pivot_pick = calcDistance(
-                    pick_point[0], pick_point[1], pivot_point[0], pivot_point[1]
-                )
-                px_dist_pivot_place = calcDistance(
-                    goal_coord[0], goal_coord[1], pivot_point[0], pivot_point[1]
-                )
-                tmp_px_dist = np.sqrt(
-                    px_dist_pivot_place**2 - px_dist_pivot_pick**2
-                )
-                action.z = np.clip(
-                    self.px_length_to_m(cableID, tmp_px_dist) * 0.8,
-                    self.min_lift_z,
-                    self.max_lift_z,
-                )
-                print("lift z: ", action.z)
-                # self.z_mult * graph.compute_length(node, next_id)
-                # the direction vector is tangent to cable at grasp point
-                action.pick_vec = graph.calc_tangent_vec(node)
-                action.place_vec = goal_vec
-                return action
+            px_dist_pivot_place = calcDistance(
+                goal_coord[0], goal_coord[1], pivot_point[0], pivot_point[1]
+            )
+            tmp_px_dist = np.sqrt(
+                px_dist_pivot_place**2 - px_dist_pivot_pick**2
+            )
+            action.z = np.clip(
+                self.px_length_to_m(cableID, tmp_px_dist) * 0.8,
+                self.min_lift_z,
+                self.max_lift_z,
+            )
+            print("lift z: ", action.z)
+            # self.z_mult * graph.compute_length(node, next_id)
+            # the direction vector is tangent to cable at grasp point
+            action.pick_vec = graph.calc_tangent_vec(grasp_point_id)
+            action.place_vec = goal_vec
+            return action
         print("Could not find an action to eliminate cx on this cable")
         return None
 
@@ -326,7 +323,8 @@ class CableSimplePolicy:
             self.plot_action_space(
                 theta_ranges, save_path, pivot_point, grasp_length, angle0
             )
-        return theta_ranges[max_elim_num]
+        return theta_ranges, max_elim_num
+        # return theta_ranges[max_elim_num]
 
     def plot_action_space(
         self, theta_ranges, save_path, pivot_point, grasp_length, angle0
@@ -426,59 +424,94 @@ class CableSimplePolicy:
                 )
         return cost
 
-    def search_goal_coord(self, grasp_point_id, keypoint_id, cableID):
+    def search_goal_coord(self, nodes, keypoint_id, cableID):
         # imagine pulling tight the cable segment from grasp point to pivot
         graph: Graph = self.cg.graphs[cableID]
 
         # the pivot point is the predecessor of the keypoint (an undercx)
         pivot_point_id = graph.get_pred(keypoint_id)
-        print("grasp: ", grasp_point_id, "pivot: ", pivot_point_id)
+        theta_ranges_all = {}  # {gpid: theta_ranges}
+        total_max_elim_num = None
+        for grasp_point_id in nodes:
+            print("grasp: ", grasp_point_id, "pivot: ", pivot_point_id)
 
-        grasp_length = graph.compute_length(grasp_point_id, pivot_point_id)
-        total_length = graph.compute_length(
-            graph.get_free_endpoint(), pivot_point_id
-        )
+            grasp_length = graph.compute_length(grasp_point_id, pivot_point_id)
+            total_length = graph.compute_length(
+                graph.get_free_endpoint(), pivot_point_id
+            )
 
-        # draw a circle (or multiple arcs on a circle) around pivot point.
-        # this is the action space
-        theta_ranges = self.generate_action_space(
-            grasp_point_id, pivot_point_id, grasp_length, total_length, cableID
-        )
-        print(theta_ranges)
-        if theta_ranges is None:
+            # draw a circle (or multiple arcs on a circle) around pivot point.
+            # this is the action space
+            theta_ranges, max_elim_num = self.generate_action_space(
+                grasp_point_id,
+                pivot_point_id,
+                grasp_length,
+                total_length,
+                cableID,
+            )
+            if total_max_elim_num is None or max_elim_num > total_max_elim_num:
+                total_max_elim_num = max_elim_num
+            print(theta_ranges)
+            theta_ranges_all[grasp_point_id] = theta_ranges
+        if theta_ranges_all is None:
             return None, None
-        thetas = []
-        costs = []
-        fig, axs = plt.subplots(1, len(theta_ranges), squeeze=False)
+
+        fig, axs = plt.subplots(total_max_elim_num, 5, squeeze=False)
         fig.suptitle("Cost in action subspace")
-        for i, theta_range in enumerate(theta_ranges):
-            res = minimize_scalar(
-                self.calc_cost,
-                args=(total_length, grasp_point_id, pivot_point_id, cableID),
-                bounds=theta_range,
-                method="bounded",
-            )
-            print(res)
-            if res.success is True:
-                thetas.append(res.x)
-                costs.append(res.fun)
-            thetas_ = np.linspace(theta_range[0], theta_range[1], num=60)
-            all_costs = np.array(
-                [
-                    self.calc_cost(
-                        the,
-                        total_length,
-                        grasp_point_id,
-                        pivot_point_id,
-                        cableID,
+        gp_cost_map_all = {}
+        gp_theta_map_all = {}
+        for gpid, theta_ranges in theta_ranges_all.items():
+            gp_elim_cost_map = {}
+            gp_elim_theta_map = {}
+            for elim, theta_range in theta_ranges.items():
+                best_cost = None
+                best_theta = None
+                for subrange in theta_range:
+                    grasp_length = graph.compute_length(
+                        grasp_point_id, pivot_point_id
                     )
-                    for the in thetas_
-                ]
-            )
-            axs[0, i].plot(thetas_, all_costs)
-            axs[0, i].plot(res.x, res.fun, color="red", marker="o")
-        print(thetas)
-        if len(thetas) == 0:
+                    total_length = graph.compute_length(
+                        graph.get_free_endpoint(), pivot_point_id
+                    )
+                    res = minimize_scalar(
+                        self.calc_cost,
+                        args=(
+                            total_length,
+                            grasp_point_id,
+                            pivot_point_id,
+                            cableID,
+                        ),
+                        bounds=subrange,
+                        method="bounded",
+                    )
+                    print(res)
+                    if res.success is True:
+                        if best_cost is None or res.fun < best_cost:
+                            best_cost = res.fun
+                            best_theta = res.x
+                    thetas_ = np.linspace(subrange[0], subrange[1], num=60)
+                    all_costs = np.array(
+                        [
+                            self.calc_cost(
+                                the,
+                                total_length,
+                                grasp_point_id,
+                                pivot_point_id,
+                                cableID,
+                            )
+                            for the in thetas_
+                        ]
+                    )
+                    axs[0, i].plot(thetas_, all_costs)
+                    axs[0, i].plot(res.x, res.fun, color="red", marker="o")
+                if best_cost is not None:
+                    gp_elim_cost_map[elim] = best_cost
+                    gp_elim_theta_map[elim] = best_theta
+            if gp_elim_cost_map:
+                gp_cost_map_all[gpid] = gp_elim_cost_map
+                gp_theta_map_all[gpid] = gp_elim_theta_map
+
+        if not gp_cost_map_all:
             return None
         for ax in axs.flat:
             ax.set(xlabel=r"$\theta$", ylabel="Cost")
@@ -491,7 +524,7 @@ class CableSimplePolicy:
         goal_coord, goal_vec = self.theta_to_goal_coord(
             theta, grasp_point_id, pivot_point_id, grasp_length, cableID
         )
-        return goal_coord, goal_vec
+        return grasp_point_id, goal_coord, goal_vec
 
     def theta_to_goal_coord(
         self, theta, grasp_point_id, pivot_point_id, length, cableID

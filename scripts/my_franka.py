@@ -20,7 +20,7 @@ ANGLE_CLIP = 1
 class MyFranka:
     def __init__(self):
         self.time_per_move = 3
-        self.small_z_offset = -0.02
+        self.small_z_offset = -0.025
         self.fa = FrankaArm()
         # transformation from fingertip of ee to center of ee
         self.T_ee_et = np.eye(4)
@@ -71,7 +71,7 @@ class MyFranka:
             "R": np.array(
                 [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
             ),
-            "t": np.array([0.42, 0.0, 0.50]),
+            "t": np.array([0.395, 0.0, 0.53]),
         }
         self.goto_pose(home_pose, sleep=self.time_per_move, use_impedance=False)
 
@@ -196,7 +196,7 @@ class MyFranka:
         # move to a point above action.place_3d, with height z
         print("place_3d: ", action.place_3d)
         self.goto_point_and_vec(
-            action.place_3d + [0, 0, -action.z],
+            action.place_3d + [0, 0, -action.z * 0.5],
             action.place_vec_3d,
             tf_w_ee=tf_w_ee,
             manipulate_gripper=GRIPPER_NONE,
@@ -217,4 +217,5 @@ class MyFranka:
 if __name__ == "__main__":
     fa = MyFranka()
     fa.reset_joint_and_gripper()
-    fa.go_to_vec(np.pi * 2 / 3)
+    fa.close_gripper()
+    # fa.go_to_vec(np.pi * 2 / 3)

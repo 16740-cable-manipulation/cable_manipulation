@@ -1,7 +1,8 @@
 from tkinter import N
+from tkinter.messagebox import NO
 import numpy as np
 import cv2
-from graph_builder import Graph, CableGraph
+from graph_builder import Graph, CableGraph, reset_id
 from graph_builder import POS_DOWN, POS_UP, POS_NONE, NODE_FREE, DPI
 from cable_discretization import getCablesDataFromImage
 from action import Action
@@ -33,10 +34,12 @@ class CableSimplePolicy:
             (0, 0),
             (self.width, self.height),
         ]  # top left, bot right
+        self.depth = None
         self.weight_dist = 1.0
-        self.weight_curv = 100
+        self.weight_curv = 40
         self.rim = 40
-        self.lift_z = 0.06
+        self.min_lift_z = 0.06
+        self.max_lift_z = 0.3
         self.use_rs = use_rs
         if self.use_rs is True:
             self.realsense = Realsense()
@@ -86,9 +89,25 @@ class CableSimplePolicy:
             if goal_coord is not None:
                 # fill in action params (2d, except z)
                 action = Action(True)
-                action.pick_coord = graph.get_node_coords(node)
+                pick_point = graph.get_node_coords(node)
+                action.pick_coord = pick_point
                 action.place_coord = goal_coord
-                action.z = self.lift_z  # TODO should change with grasp length
+                pivot_point = graph.get_node_coords(next_id)
+                px_dist_pivot_pick = calcDistance(
+                    pick_point[0], pick_point[1], pivot_point[0], pivot_point[1]
+                )
+                px_dist_pivot_place = calcDistance(
+                    goal_coord[0], goal_coord[1], pivot_point[0], pivot_point[1]
+                )
+                tmp_px_dist = np.sqrt(
+                    px_dist_pivot_place**2 - px_dist_pivot_pick**2
+                )
+                action.z = np.clip(
+                    self.px_length_to_m(cableID, tmp_px_dist) * 0.8,
+                    self.min_lift_z,
+                    self.max_lift_z,
+                )
+                print("lift z: ", action.z)
                 # self.z_mult * graph.compute_length(node, next_id)
                 # the direction vector is tangent to cable at grasp point
                 action.pick_vec = graph.calc_tangent_vec(node)
@@ -96,6 +115,40 @@ class CableSimplePolicy:
                 return action
         print("Could not find an action to eliminate cx on this cable")
         return None
+
+    def get_cable_segment_length(self, cableID, pivot_point, goal_coord):
+        len_px = calcDistance(
+            pivot_point[0], pivot_point[1], goal_coord[0], goal_coord[1]
+        )
+        return self.px_length_to_m(cableID, len_px)
+
+    def px_length_to_m(self, cableID, len_px):
+        # get a random edge
+        graph: Graph = self.cg.graphs[cableID]
+        edges = graph.get_edges()
+        edge_idx = np.random.choice(np.arange(len(edges)))
+        edge = edges[edge_idx]
+        edge_px1 = graph.get_node_coords(edge[0])
+        edge_px2 = graph.get_node_coords(edge[1])
+        edge_len_px = calcDistance(
+            edge_px1[0], edge_px1[1], edge_px2[0], edge_px2[1]
+        )
+        edge_pt1 = self.realsense.deproject_pixel(
+            self.depth, edge_px1[0], edge_px1[1]
+        )
+        edge_pt2 = self.realsense.deproject_pixel(
+            self.depth, edge_px2[0], edge_px2[1]
+        )
+        if (
+            self.is_bad_3d_coord(edge_pt1) is True
+            or self.is_bad_3d_coord(edge_pt2) is True
+        ):
+            return -1
+        edge_len_m = calcDistance(
+            edge_pt1[0], edge_pt1[1], edge_pt2[0], edge_pt2[1]
+        )
+        length = edge_len_m / edge_len_px * len_px
+        return length
 
     def get_zero_theta_vector_angle(
         self, grasp_point: np.ndarray, pivot_point: np.ndarray
@@ -463,6 +516,7 @@ class CableSimplePolicy:
 
     def unweave_step(self, bgr, depth):
         self.gen_graph_from_image(bgr)
+        self.depth = depth
         num_done = 0
         for cableID in self.cg.graphs.keys():
             action = self.eliminate_crossing(cableID)
@@ -525,6 +579,7 @@ class CableSimplePolicy:
                 raise RuntimeError("Cannot find an action to unweave!")
             elif res is UNWEAVE_ALL_DONE:
                 break
+            reset_id()
             self.cg = CableGraph()
         print("Done unweaving all cables")
         self.realsense.close()
@@ -544,6 +599,6 @@ def test_simple_policy():
 
 
 if __name__ == "__main__":
-    # csp = CableSimplePolicy(use_rs=True)
-    # csp.run()
-    test_simple_policy()
+    csp = CableSimplePolicy(use_fa=True, use_rs=True)
+    csp.run()
+    # test_simple_policy()

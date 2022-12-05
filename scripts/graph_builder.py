@@ -683,6 +683,11 @@ def test_graph():
     cg.compound_graph.visualize()
 
 
+def reset_id():
+    global id_counter
+    id_counter = -1
+
+
 if __name__ == "__main__":
     cg = CableGraph()
     from cable_discretization import getCablesDataFromImage

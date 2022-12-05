@@ -21,7 +21,7 @@ NODE_ENDPOINT = 5
 
 id_counter = -1
 
-DPI = 96
+DPI = 80
 
 
 class Graph:
@@ -436,6 +436,16 @@ class Graph:
         # print(num, num_cx_others)
         return num - num_cx_others * 3
 
+    def get_num_crossings_with_line_seg(self, pt1, pt2):
+        """Assuming the line seg never intersects an edge exactly on the node"""
+        num = 0
+        for edge in self.get_edges():
+            edge_pt1 = self.get_node_coords(edge[0])
+            edge_pt2 = self.get_node_coords(edge[1])
+            if is_line_segments_intersect(edge_pt1, edge_pt2, pt1, pt2):
+                num += 1
+        return num
+
     def visualize(self, save_path=None):
         colors = [
             "orange"
@@ -542,7 +552,7 @@ class CableGraph:
         width, heigh: image size
         """
         cx_coord_id_map = {}
-        fixed_endpoint_id = None
+        # fixed_endpoint_id = None
         for cableID, data in cables_data.items():
             coords = data["coords"]
             pos = data["pos"]
@@ -559,7 +569,7 @@ class CableGraph:
                 color=color,
                 width=w,
                 height=h,
-                fixed_endpoint_id=fixed_endpoint_id,
+                # fixed_endpoint_id=fixed_endpoint_id,
             )
             self.graphs[cableID] = graph
 
@@ -677,8 +687,8 @@ if __name__ == "__main__":
     cg = CableGraph()
     from cable_discretization import getCablesDataFromImage
 
-    img = cv2.imread("cableImages/rs_cable_imgs2/img017.png")
-    cables_data = getCablesDataFromImage(img)
+    img = cv2.imread("cableImages/generated_03.png")
+    cables_data = getCablesDataFromImage(img, vis=False)
     print(cables_data)
     cg.create_graphs(cables_data)
     # cg.graphs["cable_red"].visualize(save_path="cableGraphs/red.png")
@@ -686,6 +696,11 @@ if __name__ == "__main__":
     # cg.graphs["yellow"].visualize()
     cg.create_compound_graph()
     cg.compound_graph.visualize()
+    print(
+        cg.graphs["cable_red"].get_num_crossings_two_graphs(
+            cg.graphs["cable_blue"]
+        )
+    )
     # g2 = cg.create_compound_graph_except("cable_red")
     # g2.visualize()
 

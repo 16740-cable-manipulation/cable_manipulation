@@ -2,7 +2,7 @@ from tkinter import N
 import numpy as np
 import cv2
 from graph_builder import Graph, CableGraph
-from graph_builder import POS_DOWN, POS_UP, POS_NONE, NODE_FREE
+from graph_builder import POS_DOWN, POS_UP, POS_NONE, NODE_FREE, DPI
 from cable_discretization import getCablesDataFromImage
 from action import Action
 
@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.image as mpimg
 import matplotlib as mpl
+import matplotlib.pylab as pylab
 
 UNWEAVE_IN_PROGRESS = 0
 UNWEAVE_ALL_DONE = 1
@@ -21,9 +22,11 @@ UNWEAVE_FAIL = 2
 
 
 class CableSimplePolicy:
-    def __init__(self, width=640, height=480, use_rs=False):
+    def __init__(self, width=640, height=480, use_fa=False, use_rs=False):
         self.cg = CableGraph()
-        self.fa = MyFranka()
+        self.use_fa = use_fa
+        if use_fa:
+            self.fa = MyFranka()
         self.width = width
         self.height = height
         self.workspace = [
@@ -31,7 +34,7 @@ class CableSimplePolicy:
             (self.width, self.height),
         ]  # top left, bot right
         self.weight_dist = 1.0
-        self.weight_curv = 60
+        self.weight_curv = 100
         self.rim = 40
         self.lift_z = 0.06
         self.use_rs = use_rs
@@ -142,8 +145,8 @@ class CableSimplePolicy:
         graph_this.add_node_id(grasp_point_id, NODE_FREE, coords=res_point)
         graph_this.add_edge(grasp_point_id, pivot_point_id, POS_NONE)
 
-        graph_others = self.cg.create_compound_graph_except(cableID)
-        num_other_cables = len(self.cg.graphs) - 1
+        graph_others: Graph = self.cg.create_compound_graph_except(cableID)
+
         save_path = f"cableGraphs/numcx_composite_transitioned.png"
         path = None
         if vis is True:
@@ -152,9 +155,13 @@ class CableSimplePolicy:
                 path = composite_graph.visualize(save_path=save_path)
             else:
                 composite_graph.visualize()
-        num_cx = graph_this.get_num_crossings_two_graphs(graph_others)
+        line_seg_pt1 = graph_this.get_node_coords(grasp_point_id)
+        line_seg_pt2 = graph_this.get_node_coords(pivot_point_id)
+        num_cx = graph_others.get_num_crossings_with_line_seg(
+            line_seg_pt1, line_seg_pt2
+        )
         # also subtract repeated count at the fixed endpoint
-        return num_cx - num_other_cables, save_path
+        return num_cx, save_path
 
     def generate_action_space(
         self,
@@ -180,7 +187,7 @@ class CableSimplePolicy:
         theta_range_tmp = []
         elim_num = 0
         save_path = None
-        use_min = False
+
         for i, theta in enumerate(thetas):
             # res_point is where we might place the grasped point
             res_point = self.get_result_point(
@@ -195,15 +202,17 @@ class CableSimplePolicy:
                 res_point_free_endpoint = self.get_result_point(
                     theta, total_length, grasp_point, pivot_point
                 )
-                num_cx_orig = self.cg.compound_graph.get_num_crossings()
+                # subgraph from free ep to pivot
+                graph_orig_sub = graph.build_subgraph(
+                    graph.get_free_endpoint(), pivot_point_id
+                )
+                num_cx_orig = graph_orig_sub.get_num_crossings()
                 num_cx_new, _ = self.get_num_crossings(
                     pivot_point_id,
                     grasp_point_id,
                     res_point_free_endpoint.tolist(),
                     cableID,
                 )
-                if num_cx_new < 0:
-                    use_min = True
                 tmp_elim_num = num_cx_orig - num_cx_new
                 if tmp_elim_num > 0:
                     res_ok = True
@@ -257,52 +266,70 @@ class CableSimplePolicy:
             return None
         # only return the theta ranges with the biggest elim num
         max_elim_num = np.max(list(theta_ranges.keys()))
-        min_elim_num = np.min(list(theta_ranges.keys()))
         # draw on fig the theta ranges
         angle0 = self.get_zero_theta_vector_angle(grasp_point, pivot_point)
         # for plotting
         if save_path is not None:
-            # load image
-            plt.figure()
-            plt.imshow(mpimg.imread(save_path))
-            # plt.plot(
-            #     2 * pivot_point[0] + 13,
-            #     2 * pivot_point[1] - 5,
-            #     color="red",
-            #     marker="o",
-            # )
-            cmap = cm.cool
-            for elim, theta_range in theta_ranges.items():
-                rgb = cmap(elim / 3)
-                for rang in theta_range:
-                    arc_angles = (
-                        np.linspace(rang[0] - 0.14, rang[1] - 0.14, 50) + angle0
-                    )
-                    arc_xs = 2 * (
-                        pivot_point[0]
-                        + 16
-                        + (grasp_length + 7) * np.cos(arc_angles)
-                    )
-                    arc_ys = 2 * (
-                        pivot_point[1]
-                        - 7
-                        + (grasp_length + 7) * np.sin(arc_angles)
-                    )
-                    plt.plot(arc_xs, arc_ys, color=rgb, lw=4)
-            bounds = [0, 1, 2, 3]
-            norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-            plt.colorbar(
-                cm.ScalarMappable(norm=norm, cmap=cmap),
-                label=r"|$V_{elim}$|",
-                orientation="vertical",
+            self.plot_action_space(
+                theta_ranges, save_path, pivot_point, grasp_length, angle0
             )
-            plt.savefig(f"cableGraphs/composite_with_action_space.png")
-            plt.show()
-        return (
-            theta_ranges[min_elim_num]
-            if use_min
-            else theta_ranges[max_elim_num]
+        return theta_ranges[max_elim_num]
+
+    def plot_action_space(
+        self, theta_ranges, save_path, pivot_point, grasp_length, angle0
+    ):
+        max_elim_num = np.max(list(theta_ranges.keys())) + 2
+        min_elim_num = 1
+        # cmap = plt.get_cmap("cool", max_elim_num - min_elim_num + 1)
+
+        fig, ax = pylab.subplots(
+            1, 1, figsize=(self.width * 2 / DPI, self.height * 2 / DPI), dpi=DPI
         )
+        pylab.imshow(mpimg.imread(save_path))
+
+        cmap = pylab.cm.cool  # define the colormap
+        # extract all colors from the colormap
+        cmaplist = [cmap(i) for i in range(cmap.N)]
+        # create the new map
+        cmap = mpl.colors.LinearSegmentedColormap.from_list(
+            "Custom cmap", cmaplist, cmap.N
+        )
+        # define the bins and normalize
+        bounds = np.linspace(
+            min_elim_num, max_elim_num, max_elim_num - min_elim_num + 1
+        )
+        print(bounds)
+        norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+        # draw arcs
+        for elim, theta_range in theta_ranges.items():
+            rgb = cmap(elim - 1)
+            print(rgb)
+            for rang in theta_range:
+                arc_angles = (
+                    np.linspace(rang[0] - 0.14, rang[1] - 0.14, 50) + angle0
+                )
+                arc_xs = 2 * (
+                    pivot_point[0]
+                    + 16
+                    + (grasp_length + 7) * np.cos(arc_angles)
+                )
+                arc_ys = 2 * (
+                    pivot_point[1] - 7 + (grasp_length + 7) * np.sin(arc_angles)
+                )
+                pylab.plot(arc_xs, arc_ys, color=rgb, lw=4)
+
+        cb = pylab.colorbar(
+            pylab.cm.ScalarMappable(norm=norm, cmap=cmap),
+            label=r"|$V_{elim}$|",
+            orientation="vertical",
+            ticks=bounds,
+        )
+        labels = np.arange(min_elim_num, max_elim_num + 1, 1)
+        loc = labels + 0.5
+        cb.set_ticks(loc)
+        cb.set_ticklabels(labels)
+        pylab.savefig(f"cableGraphs/composite_with_action_space.png")
+        pylab.show()
 
     def calc_cost(self, theta, length, grasp_point_id, pivot_point_id, cableID):
         """The cost is a weighted sum of
@@ -461,18 +488,10 @@ class CableSimplePolicy:
                     action.place_3d = place_point_3d_c
                     # for the direction vector, directly use the 2d vector
                     action.pick_vec_3d = np.array(
-                        [
-                            action.pick_vec[0],
-                            action.pick_vec[1],
-                            0,
-                        ]
+                        [action.pick_vec[0], action.pick_vec[1], 0]
                     )
                     action.place_vec_3d = np.array(
-                        [
-                            action.place_vec[0],
-                            action.place_vec[1],
-                            0,
-                        ]
+                        [action.place_vec[0], action.place_vec[1], 0]
                     )
                     self.fa.exe_action(action)
                     return UNWEAVE_IN_PROGRESS
@@ -482,8 +501,8 @@ class CableSimplePolicy:
         return UNWEAVE_FAIL
 
     def run(self):
-        if self.use_rs is False:
-            print("Realsense not in use, returning")
+        if self.use_rs is False or self.use_fa is False:
+            print("Realsense or Franka Arm not in use, returning")
             return
         self.fa.reset_joint_and_gripper()
         self.fa.open_gripper()
@@ -497,10 +516,7 @@ class CableSimplePolicy:
             img_h = bgr.shape[0]
             self.width = img_w
             self.height = img_h
-            self.workspace = [
-                (0, 0),
-                (self.width, self.height),
-            ]
+            self.workspace = [(0, 0), (self.width, self.height)]
             cv2.imshow("img", bgr)
             cv2.waitKey(0)
             cv2.imwrite("cableImages/rs_cable_imgs2/test.png", bgr)
@@ -516,12 +532,14 @@ class CableSimplePolicy:
 
 # test
 def test_simple_policy():
-    img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/generated_02.png")
+    img = cv2.imread("cableImages/generated_03.png")
     img_w = img.shape[1]
     img_h = img.shape[0]
-    csp = CableSimplePolicy(width=img_w, height=img_h, use_rs=False)
+    csp = CableSimplePolicy(
+        width=img_w, height=img_h, use_fa=False, use_rs=False
+    )
     csp.gen_graph_from_image(img)
-    action = csp.eliminate_crossing("cable_yellow")
+    action = csp.eliminate_crossing("cable_red")
     print(action)
 
 

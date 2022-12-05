@@ -387,9 +387,6 @@ class Discretize:
         self.resultPixels.reverse()
         self.pos.reverse()
 
-
-
-
     def check_other_masks(self, cx, init_r, init_c, end_r, end_c):
         for color, mask in self.mask_others.items():
             neighborhood = mask[init_r:end_r, init_c:end_c]
@@ -433,7 +430,7 @@ def getCablesDataFromImage(img, vis=False):
     cable_manipulator = CableManipulation(img_w, img_h, use_rs=False)
     available_masks = cable_manipulator.get_available_masks(img)
 
-    fixed_endpoint = np.zeros(2)
+    # fixed_endpoint = np.zeros(2)
     for color in available_masks.keys():
         best_disc = None
         for i in range(3):
@@ -445,9 +442,9 @@ def getCablesDataFromImage(img, vis=False):
             if best_disc is None or len(disc.cx) > len(best_disc.cx):
                 best_disc = copy.deepcopy(disc)
         cables_disc[color] = best_disc
-        fixed_endpoint += np.array(best_disc.resultPixels[-1])
-    fixed_endpoint = fixed_endpoint / len(cables_disc)
-    fixed_endpoint = [int(fixed_endpoint[0]), int(fixed_endpoint[1])]
+        # fixed_endpoint += np.array(best_disc.resultPixels[-1])
+    # fixed_endpoint = fixed_endpoint / len(cables_disc)
+    # fixed_endpoint = [int(fixed_endpoint[0]), int(fixed_endpoint[1])]
     for color, disc in cables_disc.items():
         # fix the fixed endpoint
         # cables_disc[color].resultPixels[-1] = copy.deepcopy(fixed_endpoint)

@@ -509,7 +509,7 @@ class CableSimplePolicy:
 
 # test
 def test_simple_policy():
-    img = cv2.imread("cableImages/rs_cable_imgs2/test.png")
+    img = cv2.imread("d:/XinyuWang/2022_Fall/16740/cable_manipulation/cableImages/generated_02.png")
     img_w = img.shape[1]
     img_h = img.shape[0]
     csp = CableSimplePolicy(width=img_w, height=img_h, use_rs=False)
@@ -519,6 +519,6 @@ def test_simple_policy():
 
 
 if __name__ == "__main__":
-    csp = CableSimplePolicy(use_rs=True)
-    csp.run()
-    # test_simple_policy()
+    # csp = CableSimplePolicy(use_rs=True)
+    # csp.run()
+    test_simple_policy()

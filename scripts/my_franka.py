@@ -155,7 +155,7 @@ class MyFranka:
                 angle += np.pi
                 angle_changed = True
         elif angle_mode == ANGLE_CLIP:
-            angle = np.clip(angle, -np.pi / 2, np.pi / 2)
+            angle = np.clip(angle, -np.pi / 2 + 0.05, np.pi / 2 - 0.05)
             angle_changed = True
         r_ee0_et = R.from_euler("zyx", [angle, 0, 0])
         R_w_et = np.matmul(r_w_ee0.as_matrix(), r_ee0_et.as_matrix())

@@ -86,6 +86,11 @@ class MyFranka:
         print(p)
         return p
 
+    def get_gripper_width(self):
+        gripper_width = self.fa.get_gripper_width()
+
+        return gripper_width
+
     def go_to_vec(self, theta):
         tf_w_ee = self.get_pose()
         T_w_et = np.eye(4)
@@ -163,10 +168,29 @@ class MyFranka:
         p = {"R": T_w_et[:3, :3], "t": T_w_et[:3, 3]}
         print("T_w_et: ")
         print(T_w_et)
+
         if manipulate_gripper == GRIPPER_GRASP:
             self.open_gripper()
             self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
             self.close_gripper()
+
+            while True:
+                print("REGRASP!!")
+                self.open_gripper()
+                self.goto_pose(
+                    {
+                        "R": p["R"],
+                        "t": p["t"] + [0, 0, -0.003],
+                    },
+                    sleep=self.time_per_move,
+                    use_impedance=False,
+                )
+
+                self.close_gripper()
+                gripper_width = self.get_gripper_width()
+
+                if gripper_width > 0.001:
+                    break
         elif manipulate_gripper == GRIPPER_UNGRASP:
             self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
             self.open_gripper()

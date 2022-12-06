@@ -16,6 +16,7 @@ import matplotlib.cm as cm
 import matplotlib.image as mpimg
 import matplotlib as mpl
 import matplotlib.pylab as pylab
+import math
 
 UNWEAVE_IN_PROGRESS = 0
 UNWEAVE_ALL_DONE = 1
@@ -35,9 +36,13 @@ class CableSimplePolicy:
             (self.width, self.height),
         ]  # top left, bot right
         self.depth = None
+
         self.weight_dist = 1.0
-        self.weight_curv = 40
-        self.weight_uncertainty = 500
+        self.weight_curv = 100
+        self.weight_uncertainty = 200
+        # self.weight_sum = (
+        #     self.weight_dist + self.weight_curv + self.weight_uncertainty
+        # )
 
         self.weight_cost = 1.0
         self.weight_elim = 30
@@ -116,7 +121,7 @@ class CableSimplePolicy:
                 px_dist_pivot_place**2 - px_dist_pivot_pick**2
             )
             action.z = np.clip(
-                self.px_length_to_m(cableID, tmp_px_dist) * 0.9,
+                self.px_length_to_m(cableID, tmp_px_dist) * 0.85,
                 self.min_lift_z,
                 self.max_lift_z,
             )
@@ -502,6 +507,7 @@ class CableSimplePolicy:
                 )
                 cost += self.weight_dist * dist_cost
         curv_cost = -graph_this.calc_curvature(pivot_point_id)
+
         uncertainty_cost = -grasp_length / length
         cost = (
             cost / (len(self.cg.graphs) - 1)

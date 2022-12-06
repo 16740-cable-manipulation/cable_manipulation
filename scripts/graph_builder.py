@@ -734,7 +734,7 @@ if __name__ == "__main__":
     # endid = cg.graphs["cable_blue"].get_fixed_endpoint()
     # subg = cg.graphs["cable_blue"].build_subgraph(27, endid)
     # subg.visualize()
-    # dist = cg.graphs["cable_red"].calc_distance_between_graphs(
-    #     cg.graphs["cable_blue"]
-    # )
-    # print(dist)
+    dist = cg.graphs["cable_red"].calc_distance_between_graphs(
+        cg.graphs["cable_blue"]
+    )
+    print(dist)

@@ -7,7 +7,7 @@ from graph_builder import POS_DOWN, POS_UP, POS_NONE, NODE_FREE, DPI
 from cable_discretization import getCablesDataFromImage
 from action import Action
 
-# from my_franka import MyFranka
+from my_franka import MyFranka
 from rs_driver import Realsense
 from utility import get_rotation_matrix, unit_vector, calcDistance
 from scipy.optimize import minimize_scalar
@@ -37,7 +37,7 @@ class CableSimplePolicy:
         self.depth = None
         self.weight_dist = 1.0
         self.weight_curv = 40
-        self.weight_uncertainty = 100
+        self.weight_uncertainty = 500
 
         self.weight_cost = 1.0
         self.weight_elim = 30
@@ -46,6 +46,8 @@ class CableSimplePolicy:
         self.min_lift_z = 0.06
         self.max_lift_z = 0.3
         self.use_rs = use_rs
+
+        self.theta_range_bound = 0.07
         if self.use_rs is True:
             self.realsense = Realsense()
 
@@ -96,17 +98,25 @@ class CableSimplePolicy:
             action.pick_coord = pick_point
             action.place_coord = goal_coord
             pivot_point = graph.get_node_coords(next_id)
+            print("pivot_point: ", pivot_point)
+            print("place point: ", pick_point, "goal point: ", goal_coord)
             px_dist_pivot_pick = calcDistance(
                 pick_point[0], pick_point[1], pivot_point[0], pivot_point[1]
             )
             px_dist_pivot_place = calcDistance(
                 goal_coord[0], goal_coord[1], pivot_point[0], pivot_point[1]
             )
+            print(
+                "px_dist_pivot_place: ",
+                px_dist_pivot_place,
+                "px_dist_pivot_pick: ",
+                px_dist_pivot_pick,
+            )
             tmp_px_dist = np.sqrt(
                 px_dist_pivot_place**2 - px_dist_pivot_pick**2
             )
             action.z = np.clip(
-                self.px_length_to_m(cableID, tmp_px_dist) * 0.8,
+                self.px_length_to_m(cableID, tmp_px_dist) * 0.9,
                 self.min_lift_z,
                 self.max_lift_z,
             )
@@ -280,12 +290,12 @@ class CableSimplePolicy:
                         if len(theta_range_tmp) == 2:
                             if theta_ranges.get(elim_num) is None:
                                 theta_ranges[elim_num] = []
-                            theta_ranges[elim_num].append(theta_range_tmp)
-                        elif len(theta_range_tmp) == 1:
-                            if theta_ranges.get(elim_num) is None:
-                                theta_ranges[elim_num] = []
-                            theta_range_tmp.append(theta)
-                            theta_ranges[elim_num].append(theta_range_tmp)
+                            theta_range_tmp = self.bound_theta_range(
+                                theta_range_tmp
+                            )
+                            if theta_range_tmp is not None:
+                                theta_ranges[elim_num].append(theta_range_tmp)
+
                         theta_range_tmp = []
 
                     elim_num = tmp_elim_num
@@ -294,16 +304,16 @@ class CableSimplePolicy:
                     else:
                         theta_range_tmp[1] = theta
                 # debug
-                print(
-                    "theta: ",
-                    theta,
-                    " num_cx_new: ",
-                    num_cx_new,
-                    " num_cx_orig: ",
-                    num_cx_orig,
-                    " res_ok: ",
-                    res_ok,
-                )
+                # print(
+                #     "theta: ",
+                #     theta,
+                #     " num_cx_new: ",
+                #     num_cx_new,
+                #     " num_cx_orig: ",
+                #     num_cx_orig,
+                #     " res_ok: ",
+                #     res_ok,
+                # )
                 # _ = self.get_num_crossings(
                 #     pivot_point_id,
                 #     grasp_point_id,
@@ -323,8 +333,8 @@ class CableSimplePolicy:
                     grasp_point_id,
                     res_point.tolist(),
                     cableID,
-                    vis=True,
-                    save=True,
+                    vis=False,
+                    save=False,
                 )
                 continue
             # reset theta range and elim num
@@ -332,7 +342,10 @@ class CableSimplePolicy:
                 if len(theta_range_tmp) == 2:
                     if theta_ranges.get(elim_num) is None:
                         theta_ranges[elim_num] = []
-                    theta_ranges[elim_num].append(theta_range_tmp)
+                    # shrink range before appending
+                    theta_range_tmp = self.bound_theta_range(theta_range_tmp)
+                    if theta_range_tmp is not None:
+                        theta_ranges[elim_num].append(theta_range_tmp)
                 theta_range_tmp = []
                 elim_num = 0
 
@@ -343,17 +356,29 @@ class CableSimplePolicy:
         # draw on fig the theta ranges
         angle0 = self.get_zero_theta_vector_angle(grasp_point, pivot_point)
         # for plotting
-        self.plot_action_space(
-            theta_ranges,
-            pivot_point,
-            grasp_length,
-            angle0,
-            pivot_point_id,
-            grasp_point_id,
-            cableID,
-        )
+        if False:
+            self.plot_action_space(
+                theta_ranges,
+                pivot_point,
+                grasp_length,
+                angle0,
+                pivot_point_id,
+                grasp_point_id,
+                cableID,
+                vis=False,
+            )
         return theta_ranges, max_elim_num
         # return theta_ranges[max_elim_num]
+
+    def bound_theta_range(self, theta_range):
+        th1 = theta_range[0]
+        th2 = theta_range[1]
+        th1_bounded = th1 + self.theta_range_bound
+        th2_bounded = th2 - self.theta_range_bound
+        if th1_bounded >= th2_bounded:
+            return None
+        else:
+            return [th1_bounded, th2_bounded]
 
     def plot_action_space(
         self,
@@ -365,6 +390,7 @@ class CableSimplePolicy:
         pivot_point_id,
         grasp_point_id,
         cableID,
+        vis=False,
     ):
         max_elim_num = np.max(list(theta_ranges.keys())) + 2
         min_elim_num = 1
@@ -431,7 +457,8 @@ class CableSimplePolicy:
         cb.set_ticks(loc)
         cb.set_ticklabels(labels)
         pylab.savefig(f"cableGraphs/composite_with_action_space.png")
-        pylab.show()
+        if vis is True:
+            pylab.show()
 
     def calc_cost(self, theta, length, grasp_point_id, pivot_point_id, cableID):
         """The cost is a weighted sum of
@@ -473,13 +500,15 @@ class CableSimplePolicy:
                 dist_cost = -graph_this.calc_distance_between_graphs(
                     self.cg.graphs[cableid]
                 )
-                curv_cost = -graph_this.calc_curvature(pivot_point_id)
-                uncertainty_cost = -grasp_length / length
-                cost += (
-                    self.weight_dist * dist_cost
-                    + self.weight_curv * curv_cost
-                    + self.weight_uncertainty * uncertainty_cost
-                )
+                cost += self.weight_dist * dist_cost
+        curv_cost = -graph_this.calc_curvature(pivot_point_id)
+        uncertainty_cost = -grasp_length / length
+        cost = (
+            cost / (len(self.cg.graphs) - 1)
+            + self.weight_curv * curv_cost
+            + self.weight_uncertainty * uncertainty_cost
+        )
+
         return cost
 
     def search_goal_coord(self, nodes, keypoint_id, cableID):
@@ -524,6 +553,7 @@ class CableSimplePolicy:
 
         gp_cost_map_all = {}  # {gpid: {elim: cost, elim: cost}, ..}
         gp_theta_map_all = {}
+        plotted_legend = set()
         for i, (gpid, theta_ranges) in enumerate(theta_ranges_all):
             gp_elim_cost_map = {}  # {elim: cost}
             gp_elim_theta_map = {}  # {elim: theta}
@@ -531,9 +561,7 @@ class CableSimplePolicy:
                 best_cost = None
                 best_theta = None
                 for subrange in theta_range:
-                    grasp_length = graph.compute_length(
-                        grasp_point_id, pivot_point_id
-                    )
+                    grasp_length = graph.compute_length(gpid, pivot_point_id)
                     total_length = graph.compute_length(
                         graph.get_free_endpoint(), pivot_point_id
                     )
@@ -541,7 +569,7 @@ class CableSimplePolicy:
                         self.calc_cost,
                         args=(
                             total_length,
-                            grasp_point_id,
+                            gpid,
                             pivot_point_id,
                             cableID,
                         ),
@@ -553,13 +581,13 @@ class CableSimplePolicy:
                         if best_cost is None or res.fun < best_cost:
                             best_cost = res.fun
                             best_theta = res.x
-                    thetas_ = np.linspace(subrange[0], subrange[1], num=60)
+                    thetas_ = np.linspace(subrange[0], subrange[1], num=20)
                     all_costs = np.array(
                         [
                             self.calc_cost(
                                 the,
                                 total_length,
-                                grasp_point_id,
+                                gpid,
                                 pivot_point_id,
                                 cableID,
                             )
@@ -567,7 +595,13 @@ class CableSimplePolicy:
                         ]
                     )
                     rgb = cmap_disc(i)
-                    axs[0, elim - 1].plot(thetas_, all_costs, color=rgb)
+                    if (elim, gpid) not in plotted_legend:
+                        axs[0, elim - 1].plot(
+                            thetas_, all_costs, color=rgb, label=f"{gpid}"
+                        )
+                        plotted_legend.add((elim, gpid))
+                    else:
+                        axs[0, elim - 1].plot(thetas_, all_costs, color=rgb)
                     # the optimal theta in each subrange
                     axs[0, elim - 1].plot(
                         res.x, res.fun, color="red", marker="o"
@@ -586,6 +620,7 @@ class CableSimplePolicy:
             return None, None, None
         for ax in axs.flat:
             ax.set(xlabel=r"$\theta$", ylabel="Cost")
+            ax.legend()
         plt.savefig(f"cableGraphs/cost.png")
         plt.show()
 
@@ -604,7 +639,7 @@ class CableSimplePolicy:
         best_elim = None
         best_score = None
         for elim, cost in elim_to_best_cost_map.items():
-            score = elim * self.weight_elim + cost * self.weight_cost
+            score = -elim * self.weight_elim + cost * self.weight_cost
             if best_elim is None or score < best_score:
                 best_elim = elim
                 best_score = score
@@ -722,6 +757,6 @@ def test_simple_policy():
 
 
 if __name__ == "__main__":
-    # csp = CableSimplePolicy(use_fa=True, use_rs=True)
-    # csp.run()
-    test_simple_policy()
+    csp = CableSimplePolicy(use_fa=True, use_rs=True)
+    csp.run()
+    # test_simple_policy()

@@ -518,10 +518,10 @@ class CableSimplePolicy:
 
         # to save space, we only select from the first 8 gpid
         theta_ranges_all = theta_ranges_all[:8]
-        fig, axs = plt.subplots(
-            total_max_elim_num, len(theta_ranges_all), squeeze=False
-        )
+        fig, axs = plt.subplots(1, total_max_elim_num, squeeze=False)
         fig.suptitle("Cost in action subspace")
+        cmap_disc = pylab.get_cmap("hsv", len(theta_ranges_all))
+
         gp_cost_map_all = {}  # {gpid: {elim: cost, elim: cost}, ..}
         gp_theta_map_all = {}
         for i, (gpid, theta_ranges) in enumerate(theta_ranges_all):
@@ -566,15 +566,16 @@ class CableSimplePolicy:
                             for the in thetas_
                         ]
                     )
-                    axs[elim - 1, i].plot(thetas_, all_costs)
+                    rgb = cmap_disc(i)
+                    axs[0, elim - 1].plot(thetas_, all_costs, color=rgb)
                     # the optimal theta in each subrange
-                    axs[elim - 1, i].plot(
+                    axs[0, elim - 1].plot(
                         res.x, res.fun, color="red", marker="o"
                     )
                 if best_cost is not None:
                     gp_elim_cost_map[elim] = best_cost
                     gp_elim_theta_map[elim] = best_theta
-                    axs[elim - 1, i].plot(
+                    axs[0, elim - 1].plot(
                         best_theta, best_cost, color="green", marker="o"
                     )
             if gp_elim_cost_map:

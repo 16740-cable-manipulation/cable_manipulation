@@ -446,7 +446,7 @@ class Graph:
                 num += 1
         return num
 
-    def visualize(self, save_path=None):
+    def visualize(self, ax=None, save_path=None):
         colors = [
             "orange"
             if self.is_crossing(id)
@@ -481,24 +481,42 @@ class Graph:
             # flip y coordinate
             tmp_pos[1] = self.height - 1 - tmp_pos[1]
             pos[id] = tmp_pos
-        fig = plt.figure(
-            1, figsize=(self.width * 2 / DPI, self.height * 2 / DPI), dpi=DPI
-        )
-        nx.draw(
-            self.G,
-            pos=pos,
-            node_color=colors,
-            edge_color=e_colors,
-            width=widths,
-            with_labels=True,
-            font_color="white",
-            font_weight="bold",
-            node_size=sizes,
-        )
-        if save_path is not None:
-            plt.savefig(save_path)
-        plt.show()
-        return save_path
+        if ax is None:
+            fig = plt.figure(
+                1,
+                figsize=(self.width / DPI, self.height / DPI),
+                dpi=DPI,
+            )
+            nx.draw(
+                self.G,
+                pos=pos,
+                node_color=colors,
+                edge_color=e_colors,
+                width=widths,
+                with_labels=True,
+                font_color="white",
+                font_weight="bold",
+                node_size=sizes,
+            )
+            if save_path is not None:
+                plt.savefig(save_path)
+            plt.show()
+            return None
+        else:
+            nx.draw(
+                self.G,
+                pos=pos,
+                node_color=colors,
+                edge_color=e_colors,
+                width=widths,
+                with_labels=True,
+                font_color="white",
+                font_weight="bold",
+                node_size=sizes,
+                ax=ax,
+            )
+            # plt.show()
+            # return ax
 
 
 class CableGraph:

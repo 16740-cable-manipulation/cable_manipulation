@@ -25,3 +25,10 @@ class Action:
         self.pick_vec_3d = None
         self.place_vec_3d = None
         self.z = None
+
+    def print(self):
+        print(
+            f"Action: is_not_empty={not self.is_empty},\n"
+            f"pick_coord={self.pick_coord}, place_coord={self.place_coord},\n"
+            f"lift_z={self.z}"
+        )

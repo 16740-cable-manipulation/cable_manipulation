@@ -188,6 +188,64 @@ class Graph:
     def get_edges(self):
         return list(self.G.edges)
 
+    def get_first_n_edges(self, n=1):
+        free_endpoint_id = self.get_free_endpoint()
+        pred = free_endpoint_id
+        res = []
+        for i in range(n):
+            succ = self.get_succ(pred)
+            res.append((pred, succ))
+            if succ == self.get_fixed_endpoint():
+                break
+            pred = succ
+        return res
+
+    def get_last_n_edges(self, n=1):
+        fixed_endpoint_id = self.get_fixed_endpoint()
+        succ = fixed_endpoint_id
+        res = []
+        for i in range(n):
+            pred = self.get_pred(succ)
+            res.append((pred, succ))
+            if pred == self.get_free_endpoint():
+                break
+            succ = pred
+        return res
+
+    def is_middle_not_in_ws(self, ws):
+        fixed_endpoint_id = self.get_fixed_endpoint()
+        succ = fixed_endpoint_id
+        res = [True]
+        for i in range(len(self.get_nodes())):
+            pred = self.get_pred(succ)
+            if self.is_in_ws(pred, ws) == False:
+                if res[-1] != False:
+                    res.append(False)
+            if pred == self.get_free_endpoint():
+                break
+            succ = pred
+        if res.count(True) > 1:
+            return True
+        else:
+            return False
+
+    def is_in_ws(self, id, ws):
+        coord = self.get_node_coords(id)
+        return (
+            coord[0] >= ws[0][0]
+            and coord[0] < ws[1][0]
+            and coord[1] >= ws[0][1]
+            and coord[1] < ws[1][1]
+        )
+
+    def get_crossing_edges(self):
+        # edges at crossings
+        res = []
+        for edge in self.get_edges():
+            if self.get_pos_label(edge[0], edge[1]) != POS_NONE:
+                res.append(edge)
+        return res
+
     def get_crossings(self):
         return list(
             filter(lambda node: self.is_crossing(node), self.get_nodes())
@@ -237,13 +295,16 @@ class Graph:
             / 2
         ).tolist()
 
-    def grow_branch(self, coords, id, div=1):
+    def grow_branch(self, coords, id, div=1, new_id=None):
         """Grow a branch from coords to id, where id is already in the graph.
         The newly added nodes have float coordinates
 
         ``div``: number of edges in this newly grown branch
         """
         assert self.has_node(id) and div > 0
+        assert new_id is None or (
+            new_id is not None and not self.has_node(new_id)
+        )
         last_coord = self.get_node_coords(id)
         edge_length = (
             calcDistance(last_coord[0], last_coord[1], coords[0], coords[1])
@@ -251,7 +312,13 @@ class Graph:
         )
         vec = unit_vector(np.array(last_coord) - np.array(coords)) * edge_length
         this_coord = np.array(coords)
-        this_id = self.add_node(NODE_FREE, coords=this_coord.tolist())
+        if new_id is None:
+            this_id = self.add_node(NODE_FREE, coords=this_coord.tolist())
+            first_id = this_id
+        else:
+            self.add_node_id(new_id, NODE_FREE, coords=this_coord.tolist())
+            this_id = new_id
+            first_id = new_id
         for i in range(div):
             if i < div - 1:
                 next_coord = this_coord + vec
@@ -261,6 +328,7 @@ class Graph:
                 this_coord = next_coord
             else:  # for the last edge, just connect to the id
                 self.add_edge(this_id, id, pos=POS_NONE)
+        return first_id
 
     def get_next_keypoint(self, id, pos=POS_NONE):
         """Get the id of the next crossing or endpoint and the crossing pos.
@@ -387,6 +455,25 @@ class Graph:
             )
             sum_dist += dist
         return sum_dist / len(self.get_nodes())
+
+    def calc_distance_between_edges(self, edge1, edge2):
+        edge1_pt1 = self.get_node_coords(edge1[0])
+        edge1_pt2 = self.get_node_coords(edge1[1])
+        edge2_pt1 = self.get_node_coords(edge2[0])
+        edge2_pt2 = self.get_node_coords(edge2[1])
+        dist1 = calcDistance(
+            edge1_pt1[0], edge1_pt1[1], edge2_pt1[0], edge2_pt1[1]
+        )
+        dist2 = calcDistance(
+            edge1_pt1[0], edge1_pt1[1], edge2_pt2[0], edge2_pt2[1]
+        )
+        dist3 = calcDistance(
+            edge1_pt2[0], edge1_pt2[1], edge2_pt1[0], edge2_pt1[1]
+        )
+        dist4 = calcDistance(
+            edge1_pt2[0], edge1_pt2[1], edge2_pt2[0], edge2_pt2[1]
+        )
+        return (dist1 + dist2 + dist3 + dist4) / 4
 
     def calc_curvature(self, id, pos=POS_NONE):
         """Currently this is calculating the angle at id, not curvature"""

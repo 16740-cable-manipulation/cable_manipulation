@@ -53,7 +53,7 @@ class CableSimplePolicy:
         self.max_lift_z = 0.3
         self.use_rs = use_rs
 
-        self.theta_range_bound = 0.07
+        self.theta_range_bound = 0.05
         if self.use_rs is True:
             self.realsense = Realsense()
 
@@ -387,19 +387,56 @@ class CableSimplePolicy:
         cableID,
         vis=False,
     ):
+        graph: Graph = self.cg.graphs[cableID]
         max_elim_num = np.max(list(theta_ranges.keys())) + 2
         min_elim_num = 0
         # cmap = plt.get_cmap("cool", max_elim_num - min_elim_num + 1)
-
-        fig, ax = pylab.subplots(
-            1, 1, figsize=(self.width / DPI, self.height / DPI), dpi=DPI
-        )
 
         graph_this = self.simulate_next_state(
             0.0, grasp_point_id, pivot_point_id, cableID
         )
         graph_others: Graph = self.cg.create_compound_graph_except(cableID)
-        composite_graph = graph_this.compose(graph_others)
+        # create a better graph for visualization
+        graph_this_simple = graph_this.build_subgraph(
+            pivot_point_id, graph.get_fixed_endpoint()
+        )
+        graph_this.copy_node(graph_this_simple, grasp_point_id)
+        graph_this.copy_node(graph_this_simple, graph.get_free_endpoint())
+        graph_this_simple.add_edge(grasp_point_id, pivot_point_id, POS_NONE)
+        graph_this_simple.add_edge(
+            graph.get_free_endpoint(), grasp_point_id, POS_NONE
+        )
+        composite_graph_1 = graph_others.compose(graph_this_simple)
+        composite_graph_1.visualize()
+
+        # also plot the simulated state at a valid theta
+        rang = theta_ranges[np.max(list(theta_ranges.keys()))][0]
+        th = np.random.uniform(rang[0], rang[1])
+        print("random angle to plot: ", th)
+        graph_this_2 = self.simulate_next_state(
+            th,
+            grasp_point_id,
+            pivot_point_id,
+            cableID,
+        )
+        # create a better graph for visualization
+        graph_this_2_simple = graph_this_2.build_subgraph(
+            pivot_point_id, graph.get_fixed_endpoint()
+        )
+        graph_this_2.copy_node(graph_this_2_simple, grasp_point_id)
+        graph_this_2.copy_node(graph_this_2_simple, graph.get_free_endpoint())
+        graph_this_2_simple.add_edge(grasp_point_id, pivot_point_id, POS_NONE)
+        graph_this_2_simple.add_edge(
+            graph.get_free_endpoint(), grasp_point_id, POS_NONE
+        )
+        composite_graph_2 = graph_others.compose(graph_this_2_simple)
+        composite_graph_2.visualize()
+
+        # plot action space
+        fig, ax = pylab.subplots(
+            1, 1, figsize=(self.width / DPI, self.height / DPI), dpi=DPI
+        )
+        composite_graph = self.cg.compound_graph
         composite_graph.visualize(ax=ax)
 
         cmap = pylab.cm.cool  # define the colormap
@@ -419,7 +456,7 @@ class CableSimplePolicy:
         cmap_disc = pylab.get_cmap("cool", len(bounds) - 1)
         # draw arcs
         for elim, theta_range in theta_ranges.items():
-            rgb = cmap_disc(elim - 1)
+            rgb = cmap_disc(elim)
             print(f"elim={elim}, color={rgb}")
             for rang in theta_range:
                 arc_angles = np.linspace(rang[0], rang[1], 50) + angle0

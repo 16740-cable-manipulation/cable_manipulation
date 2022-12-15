@@ -22,6 +22,9 @@ UNWEAVE_IN_PROGRESS = 0
 UNWEAVE_ALL_DONE = 1
 UNWEAVE_FAIL = 2
 
+MODE_ELIM = 0
+MODE_REDISTRIB = 1
+
 
 class CableSimplePolicy:
     def __init__(self, width=640, height=480, use_fa=False, use_rs=False):
@@ -561,7 +564,7 @@ class CableSimplePolicy:
 
         return cost
 
-    def search_goal_coord(self, nodes, keypoint_id, cableID):
+    def search_goal_coord(self, nodes, keypoint_id, cableID, mode=MODE_ELIM):
         # imagine pulling tight the cable segment from grasp point to pivot
         graph: Graph = self.cg.graphs[cableID]
 

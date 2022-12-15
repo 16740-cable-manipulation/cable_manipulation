@@ -6,7 +6,7 @@ from graph_builder import POS_DOWN, POS_UP, POS_NONE, NODE_FREE, DPI
 from cable_discretization import getCablesDataFromImage
 from action import Action
 
-# from my_franka import MyFranka
+from my_franka import MyFranka
 from rs_driver import Realsense
 from utility import get_rotation_matrix, unit_vector, calcDistance
 from scipy.optimize import minimize_scalar
@@ -119,19 +119,23 @@ class CableSimplePolicy:
         next_id, cx_pos, nodes = graph.get_next_keypoint(
             graph.get_free_endpoint()
         )
-        if cx_pos == POS_UP:
-            # this means we've already checked this cable in elimitate_crossing
-            print("First cx of # ", cableID, " is OX, returning")
+        # if cx_pos == POS_UP:
+        #     # this means we've already checked this cable in elimitate_crossing
+        #     print("First cx of # ", cableID, " is OX, returning")
+        #     return None
+        # elif cx_pos == POS_DOWN or graph.is_fixed_endpoint(next_id):
+        #     # first crossing is UX or first keypoint is fixed endpoint
+        #     print("First cx of # ", cableID, " is UX or fixed endpoint")
+        #     if len(nodes) < 2:
+        #         print("#", cableID, " has too few graspable nodes, returning")
+        #         return None
+        # else:
+        #     return None
+        print("keypoint:", next_id)
+        if len(nodes) < 2:
+            print("#", cableID, " has too few graspable nodes, returning")
             return None
-        elif cx_pos == POS_DOWN or graph.is_fixed_endpoint(next_id):
-            # first crossing is UX or first keypoint is fixed endpoint
-            print("First cx of # ", cableID, " is UX or fixed endpoint")
-            if len(nodes) < 2:
-                print("#", cableID, " has too few graspable nodes, returning")
-                return None
-        else:
-            return None
-        # if first keypoint is UX or fixed endpoint
+
         nodes = nodes[:-1]  # the last one is the pivot point
         grasp_point_id, goal_coord, goal_vec = self.search_goal_coord(
             nodes, next_id, cableID, MODE_REDISTRIB
@@ -171,7 +175,7 @@ class CableSimplePolicy:
             px_dist_pivot_pick,
         )
         tmp_px_dist = np.sqrt(
-            np.abs(px_dist_pivot_place ** 2 - px_dist_pivot_pick ** 2)
+            np.abs(px_dist_pivot_place**2 - px_dist_pivot_pick**2)
         )
         if self.use_rs:
             action.z = np.clip(
@@ -284,7 +288,7 @@ class CableSimplePolicy:
         """Return a dict {elim: [[th_start1, th_end1], [th_start2, th_end2]],..}
         and the max_elim_num.
         The actions in the action space doesn't have to eliminate a cx.
-        However, 
+        However,
         1. it shouldn't introduce more crossings.
         2. it shouldn't exceed the workspace.
         3. it shouldn't be to close to any keypoints.
@@ -309,9 +313,9 @@ class CableSimplePolicy:
             # whenever resok is turned False (or reaches upper theta bound) or
             # elim_num has changed, if we have a theta subrange with sufficient
             # size, add it to the theta ranges dict
-            print(
-                f"theta: {theta}, res_ok: {res_ok}, tmp_elim_num: {tmp_elim_num}"
-            )
+            # print(
+            #     f"theta: {theta}, res_ok: {res_ok}, tmp_elim_num: {tmp_elim_num}"
+            # )
             if (
                 res_ok is False
                 or i == thetas.shape[0] - 1
@@ -346,16 +350,16 @@ class CableSimplePolicy:
         angle0 = self.get_zero_theta_vector_angle(grasp_point, pivot_point)
         # for plotting
 
-        self.plot_action_space(
-            theta_ranges,
-            pivot_point,
-            grasp_length,
-            angle0,
-            pivot_point_id,
-            grasp_point_id,
-            cableID,
-            vis=vis,
-        )
+        if vis is True:
+            self.plot_action_space(
+                theta_ranges,
+                pivot_point,
+                grasp_length,
+                angle0,
+                pivot_point_id,
+                grasp_point_id,
+                cableID,
+            )
         return theta_ranges, max_elim_num
         # return theta_ranges[max_elim_num]
 
@@ -374,7 +378,7 @@ class CableSimplePolicy:
         graph_this = self.simulate_next_state(
             theta, grasp_point_id, pivot_point_id, cableID
         )
-
+        # print(graph_this.get_node_coords(grasp_point_id))
         if not graph_this.is_in_ws(grasp_point_id, ws):
             # print("action invalid: res grasp point not in ws")
             return False, elim_num
@@ -469,9 +473,8 @@ class CableSimplePolicy:
         pivot_point_id,
         grasp_point_id,
         cableID,
-        vis=False,
     ):
-        """Create 3 plots: 
+        """Create 3 plots:
         1. the simulated state at theta = 0
         2. the simulated state at a valid theta
         3. the entire valid action space
@@ -567,8 +570,7 @@ class CableSimplePolicy:
         cb.set_ticks(loc)
         cb.set_ticklabels(labels)
         pylab.savefig(f"cableGraphs/composite_with_action_space.png")
-        if vis is True:
-            pylab.show()
+        pylab.show()
 
     def calc_cost_elim(
         self, theta, total_length, grasp_point_id, pivot_point_id, cableID
@@ -577,8 +579,8 @@ class CableSimplePolicy:
         1. Negative distance to other cables after the move
             (need a distance metric)
         2. Curvature at the pivot point after the move
-        3. Uncertainty, which is negatively correlated with 
-            grasp_length/total_length (total length is the cable length from 
+        3. Uncertainty, which is negatively correlated with
+            grasp_length/total_length (total length is the cable length from
             free end to pivot)
         """
         cost = 0
@@ -652,13 +654,15 @@ class CableSimplePolicy:
             # draw multiple arcs on a circle of R=grasp_length around pivot
             # this is the action space
             theta_ranges, max_elim_num = self.generate_action_space(
-                grasp_point_id, pivot_point_id, grasp_length, cableID, vis=True
+                grasp_point_id, pivot_point_id, grasp_length, cableID, vis=False
             )
+            if theta_ranges is None:
+                continue
             if mode == MODE_ELIM:  # in this mode we DO want to elim cx
                 # get rid of the item in theta_ranges whose key (elim num) is 0
                 theta_ranges.pop(0, None)
             print("theta ranges (filtered):", theta_ranges)
-            if theta_ranges is None or len(theta_ranges) == 0:
+            if len(theta_ranges) == 0:
                 continue
             if total_max_elim_num is None or max_elim_num > total_max_elim_num:
                 total_max_elim_num = max_elim_num
@@ -938,7 +942,7 @@ class CableSimplePolicy:
         # to redistrib a (random?) cable whose first cx is an ux
         print("Cannot find any move on cables whose first cx is OX")
         print("Attemping to REDISTRIB")
-        cableids = self.cg.graphs.keys()
+        cableids = list(self.cg.graphs.keys())
         random.shuffle(cableids)
         for cableID in cableids:
             action = self.redistribute_cable(cableID)
@@ -1006,6 +1010,6 @@ def test_redistrib():
 
 
 if __name__ == "__main__":
-    # csp = CableSimplePolicy(use_fa=True, use_rs=True)
-    # csp.run()
-    test_redistrib()
+    csp = CableSimplePolicy(use_fa=True, use_rs=True)
+    csp.run()
+    # test_elim()

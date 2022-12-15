@@ -140,6 +140,10 @@ class Graph:
         assert self.has_edge(id1, id2)
         return self.G.edges[id1, id2]["pos"]
 
+    def is_edge_node_connected(self, id, edge):
+        assert self.has_edge(edge[0], edge[1]) and self.has_node(id)
+        return id == edge[0] or id == edge[1]
+
     def get_neighbors(self, id, pos=POS_NONE):
         """Get both the predecessor and the successor
 
@@ -238,12 +242,23 @@ class Graph:
             and coord[1] < ws[1][1]
         )
 
-    def get_crossing_edges(self):
+    def get_crossing_edges(self, cx=None):
+        """cx is a list or None. if not none, will only return edges of those
+        crossings
+        TODO this currently only works on linear graph
+        """
         # edges at crossings
         res = []
-        for edge in self.get_edges():
-            if self.get_pos_label(edge[0], edge[1]) != POS_NONE:
-                res.append(edge)
+        if cx is not None:
+            for id in cx:
+                succ = self.get_succ(id)
+                pred = self.get_pred(id)
+                res.append((pred, id))
+                res.append((id, succ))
+        else:
+            for edge in self.get_edges():
+                if self.get_pos_label(edge[0], edge[1]) != POS_NONE:
+                    res.append(edge)
         return res
 
     def get_crossings(self):
@@ -420,6 +435,7 @@ class Graph:
         before id2.
 
         If id1 is a crossing, pos will select the next direction
+        Note: this doesn't copy the free_endpoint and fixed_endpoint properties
         """
         assert self.has_node(id1) and self.has_node(id2)
         graph = Graph()
@@ -570,9 +586,7 @@ class Graph:
             pos[id] = tmp_pos
         if ax is None:
             fig = plt.figure(
-                1,
-                figsize=(self.width / DPI, self.height / DPI),
-                dpi=DPI,
+                1, figsize=(self.width / DPI, self.height / DPI), dpi=DPI
             )
             nx.draw(
                 self.G,

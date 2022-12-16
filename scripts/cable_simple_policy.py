@@ -31,6 +31,7 @@ class CableSimplePolicy:
         self.width = width
         self.height = height
         self.min_edge_dist = 30
+        self.stiff_tail_thresh = 200
         self.workspace = [
             (0, 0),
             (self.width, self.height),
@@ -40,21 +41,24 @@ class CableSimplePolicy:
         # for MODE_ELIM
         self.weight_dist = 1.0
         self.weight_curv = 100
-        self.weight_uncertainty = 200
+        self.weight_uncertainty = 100
         # for MODE_REDISTRIB
-        self.weight_dist_cov = 50
+        self.weight_dist_cov = 3000
 
         self.weight_cost = 1.0
         self.weight_elim = 30
 
-        self.rim = 30  # px
-        self.min_lift_z = 0.06
+        self.rim = 40  # px
+        self.min_lift_z = 0.03
         self.max_lift_z = 0.3
         self.use_rs = use_rs
 
         self.theta_range_bound = 0.05
         if self.use_rs is True:
             self.realsense = Realsense()
+
+        self.prev_cable_id = None
+        self.grasp_length_multiplier = 1.0
 
     def gen_graph_from_image(self, img):
         cable_data = getCablesDataFromImage(img, vis=False)
@@ -133,8 +137,14 @@ class CableSimplePolicy:
         #     return None
         print("keypoint:", next_id)
         if len(nodes) < 2:
-            print("#", cableID, " has too few graspable nodes, returning")
-            return None
+            print("#", cableID, " has too few graspable nodes")
+            # it's also possible to grab the next segment if the free segment is short
+            if not graph.is_fixed_endpoint(next_id):
+                next_id, cx_pos, nodes = graph.get_next_keypoint(next_id)
+                if len(nodes) < 2:
+                    return None
+            else:
+                return None
 
         nodes = nodes[:-1]  # the last one is the pivot point
         grasp_point_id, goal_coord, goal_vec = self.search_goal_coord(
@@ -158,6 +168,7 @@ class CableSimplePolicy:
         action = Action(True)
         pick_point = graph.get_node_coords(grasp_point_id)
         action.pick_coord = pick_point
+
         action.place_coord = goal_coord
         pivot_point = graph.get_node_coords(pivot_point_id)
         print("pivot_point: ", pivot_point)
@@ -179,7 +190,7 @@ class CableSimplePolicy:
         )
         if self.use_rs:
             action.z = np.clip(
-                self.px_length_to_m(cableID, tmp_px_dist) * 0.85,  # TODO magic
+                self.px_length_to_m(cableID, tmp_px_dist) * 0.75,  # TODO magic
                 self.min_lift_z,
                 self.max_lift_z,
             )
@@ -300,7 +311,12 @@ class CableSimplePolicy:
         graph: Graph = self.cg.graphs[cableID]
         grasp_point = np.array(graph.get_node_coords(grasp_point_id))
         pivot_point = np.array(graph.get_node_coords(pivot_point_id))
-        thetas = np.arange(-np.pi / 2, np.pi / 2, 0.03)
+        thetas = np.hstack(
+            (
+                np.arange(-np.pi / 2, -np.pi / 12, 0.05),
+                np.arange(np.pi / 12, np.pi / 2, 0.05),
+            )
+        )
         thetas = np.hstack(([0], thetas))
         theta_ranges = {}  # {elim_num1: [[],[],..], elim_num2: [[],[],..]}
         theta_range_tmp = []
@@ -614,8 +630,8 @@ class CableSimplePolicy:
         """The cost is a weighted sum of
         1. Cov of distance to upper boundary
         2. Uncertainty
+        3. Curvature
         """
-        cost = 0
         graph: Graph = self.cg.graphs[cableID]
         # from res free end to res grasp to pivot to fixed end
         graph_this = self.simulate_next_state(
@@ -629,12 +645,24 @@ class CableSimplePolicy:
                 for node in graph_this.get_nodes()
             ]
         )
-        dist_cov_cost = np.cov(dists)
+        dists = dists / self.height
+        dist_cov_cost = np.sqrt(np.cov(dists))
+        dist_cost_all = 0
+        for cableid, graph in self.cg.graphs.items():
+            if cableid != cableID:
+                dist_cost = -graph_this.calc_distance_between_graphs(
+                    self.cg.graphs[cableid]
+                )
+                dist_cost_all += self.weight_dist * dist_cost
+
         uncertainty_cost = -grasp_length / total_length
+        curv_cost = -graph_this.calc_curvature(pivot_point_id)
 
         cost = (
             self.weight_dist_cov * dist_cov_cost
             + self.weight_uncertainty * uncertainty_cost
+            + self.weight_curv * curv_cost
+            # + dist_cost_all / (len(self.cg.graphs) - 1)
         )
         return cost
 
@@ -648,6 +676,13 @@ class CableSimplePolicy:
         total_max_elim_num = None
         for grasp_point_id in nodes:
             print("grasp: ", grasp_point_id, "pivot: ", pivot_point_id)
+            # if it's too close to other nodes, bad
+            graph_others = self.cg.create_compound_graph_except(cableID)
+            nearest_dist, nearest_id = graph_others.find_nearest_node(
+                graph.get_node_coords(grasp_point_id)
+            )
+            if nearest_dist < self.min_edge_dist:
+                continue
 
             grasp_length = graph.compute_length(grasp_point_id, pivot_point_id)
 
@@ -671,10 +706,10 @@ class CableSimplePolicy:
             return None, None, None
 
         # to save space, we only select from the first 8 gpid
-        theta_ranges_all = theta_ranges_all[:8]
+        theta_ranges_all = theta_ranges_all[:15]
         # gp_cost_map_all <- {gpid: {elim: cost, elim: cost}, ..}
         # note: if mode is REDISTRIB, theta_ranges_all only contain theta_ranges
-        # whose key (the elim num) is 0
+        # whose key (the elim num) is 0? TODO not really
         gp_cost_map_all, gp_theta_map_all = self.compute_all_costs(
             theta_ranges_all,
             total_max_elim_num,
@@ -700,23 +735,18 @@ class CableSimplePolicy:
                     elim_to_best_action_map[elim] = (gpid, theta)
 
         best_elim = None
-
-        if mode == MODE_ELIM:  # in elim cx mode
-            best_score = None
-            for elim, cost in elim_to_best_cost_map.items():
-                score = -elim * self.weight_elim + cost * self.weight_cost
-                if best_elim is None or score < best_score:
-                    best_elim = elim
-                    best_score = score
-
-        elif mode == MODE_REDISTRIB:
-            # if we're in redistribution mode, no gpid has any theta will result
-            # in a reduction of #cx
-            assert total_max_elim_num == 0
-            best_elim = 0
+        best_score = None
+        for elim, cost in elim_to_best_cost_map.items():
+            score = -elim * self.weight_elim + cost * self.weight_cost
+            if best_elim is None or score < best_score:
+                best_elim = elim
+                best_score = score
 
         best_gpid, best_theta = elim_to_best_action_map[best_elim]
-        best_grasp_length = graph.compute_length(best_gpid, pivot_point_id)
+        best_grasp_length = (
+            graph.compute_length(best_gpid, pivot_point_id)
+            * self.grasp_length_multiplier
+        )
         # convert theta into goal coord
         goal_coord, goal_vec = self.theta_to_goal_coord(
             best_theta, best_gpid, pivot_point_id, best_grasp_length, cableID
@@ -847,7 +877,13 @@ class CableSimplePolicy:
             div=num_new_edges,
             new_id=grasp_point_id,
         )
-        if ratio > 0.7:  # use straight mode TODO magic number
+        # also need to consider stiffness.
+        # a longer tail is less stiff, while a shorter tail is more stiff
+        # use straight mode TODO magic number
+        if (
+            ratio > 0.7
+            or (total_length - grasp_length) < self.stiff_tail_thresh
+        ):
             free_end_res_point = self.get_result_point(
                 theta, total_length, grasp_point, pivot_point
             )
@@ -921,7 +957,11 @@ class CableSimplePolicy:
         self.depth = depth
         num_done = 0
         print("Attemping to ELIM")
-        for cableID in self.cg.graphs.keys():
+        cableids = set(self.cg.graphs.keys())
+        if self.prev_cable_id is not None:
+            cableids = cableids - {self.prev_cable_id}
+        cableids = list(cableids)
+        for cableID in cableids:
             action = self.eliminate_crossing(cableID)
             if num_done > 0 and action is not None and action.is_empty is False:
                 num_done = 0
@@ -932,22 +972,24 @@ class CableSimplePolicy:
                     num_done += 1
                 else:
                     print("Found valid action to elim at least 1 cx")
+                    self.prev_cable_id = cableID
                     self.fa.exe_action(action)
                     return UNWEAVE_IN_PROGRESS
 
-        if num_done == len(self.cg.graphs.keys()):
+        if num_done == len(cableids):
             print("Unweaving all done. Stopping...")
             return UNWEAVE_ALL_DONE
         # if cable not done and we can't find any action to elim, the we attemp
         # to redistrib a (random?) cable whose first cx is an ux
         print("Cannot find any move on cables whose first cx is OX")
         print("Attemping to REDISTRIB")
-        cableids = list(self.cg.graphs.keys())
+
         random.shuffle(cableids)
         for cableID in cableids:
             action = self.redistribute_cable(cableID)
             if action is not None:
                 print("Found valid action to redistrib a cable")
+                self.prev_cable_id = cableID
                 self.fa.exe_action(action)
                 return UNWEAVE_IN_PROGRESS
         # can neither ELIM nor REDISTRIB
@@ -971,8 +1013,9 @@ class CableSimplePolicy:
             self.height = img_h
             self.workspace = [(0, 0), (self.width, self.height)]
             cv2.imshow("img", bgr)
-            cv2.waitKey(0)
             cv2.imwrite("cableImages/rs_cable_imgs2/test.png", bgr)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
             res = self.unweave_step(bgr, depth)
             if res is UNWEAVE_FAIL:
                 raise RuntimeError("Cannot find an action to unweave!")

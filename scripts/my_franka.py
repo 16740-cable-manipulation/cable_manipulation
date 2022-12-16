@@ -19,8 +19,8 @@ ANGLE_CLIP = 1
 
 class MyFranka:
     def __init__(self):
-        self.time_per_move = 3
-        self.small_z_offset = -0.025
+        self.time_per_move = 2
+        self.small_z_offset = -0.028
         self.fa = FrankaArm()
         # transformation from fingertip of ee to center of ee
         self.T_ee_et = np.eye(4)
@@ -39,11 +39,11 @@ class MyFranka:
 
     def open_gripper(self):
         self.fa.goto_gripper(0.05)
-        time.sleep(2)
+        time.sleep(1)
 
     def close_gripper(self):
         self.fa.close_gripper()
-        time.sleep(2)
+        time.sleep(1.5)
 
     def reset_joint_and_gripper(self):
         self.fa.open_gripper()
@@ -71,7 +71,7 @@ class MyFranka:
             "R": np.array(
                 [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
             ),
-            "t": np.array([0.395, 0.0, 0.53]),
+            "t": np.array([0.395, 0.0, 0.57]),
         }
         self.goto_pose(home_pose, sleep=self.time_per_move, use_impedance=False)
 
@@ -170,27 +170,18 @@ class MyFranka:
         print(T_w_et)
 
         if manipulate_gripper == GRIPPER_GRASP:
-            self.open_gripper()
-            self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
-            self.close_gripper()
-
-            while True:
-                print("REGRASP!!")
+            num_attemp = 0
+            while num_attemp < 5:
                 self.open_gripper()
-                self.goto_pose(
-                    {
-                        "R": p["R"],
-                        "t": p["t"] + [0, 0, -0.003],
-                    },
-                    sleep=self.time_per_move,
-                    use_impedance=False,
-                )
-
+                self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
                 self.close_gripper()
                 gripper_width = self.get_gripper_width()
-
-                if gripper_width > 0.001:
+                if gripper_width > 0.002:
                     break
+                print("REGRASP!!")
+                p["t"] += [0, 0, -0.003]
+                num_attemp += 1
+
         elif manipulate_gripper == GRIPPER_UNGRASP:
             self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
             self.open_gripper()

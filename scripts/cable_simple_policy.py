@@ -59,6 +59,7 @@ class CableSimplePolicy:
 
         self.prev_cable_id = None
         self.grasp_length_multiplier = 1.0
+        self.dist_cov_cost_thresh = 0.07
 
     def gen_graph_from_image(self, img):
         cable_data = getCablesDataFromImage(img, vis=False)
@@ -117,6 +118,14 @@ class CableSimplePolicy:
         """
         print("Attempting to redistribute # ", cableID)
         graph: Graph = self.cg.graphs[cableID]
+        # first, check whether we need to redistribute this cable
+        # if the dist cov is low, then we don't need to
+        dist_cov_cost = self.calc_normalized_dist_cov(graph)
+        print(dist_cov_cost)
+        if dist_cov_cost < self.dist_cov_cost_thresh:
+            print("This cable already has good dist cov, no need to redistrib")
+            return None
+
         self.cg.compound_graph.visualize(
             save_path="cableGraphs/composite_original.png"
         )
@@ -136,8 +145,11 @@ class CableSimplePolicy:
         # else:
         #     return None
         print("keypoint:", next_id)
-        if len(nodes) < 2:
-            print("#", cableID, " has too few graspable nodes")
+        tail_length = graph.compute_length(graph.get_free_endpoint(), next_id)
+        if len(nodes) < 2 or (
+            cx_pos == POS_DOWN and tail_length < self.stiff_tail_thresh
+        ):
+            print("#", cableID, " has very short tail")
             # it's also possible to grab the next segment if the free segment is short
             if not graph.is_fixed_endpoint(next_id):
                 next_id, cx_pos, nodes = graph.get_next_keypoint(next_id)
@@ -190,7 +202,7 @@ class CableSimplePolicy:
         )
         if self.use_rs:
             action.z = np.clip(
-                self.px_length_to_m(cableID, tmp_px_dist) * 0.75,  # TODO magic
+                self.px_length_to_m(cableID, tmp_px_dist) * 0.9,  # TODO magic
                 self.min_lift_z,
                 self.max_lift_z,
             )
@@ -624,6 +636,15 @@ class CableSimplePolicy:
 
         return cost
 
+    def calc_normalized_dist_cov(self, graph: Graph):
+        # y coordinates of each node in the new graph
+        dists = np.array(
+            [graph.get_node_coords(node)[1] for node in graph.get_nodes()]
+        )
+        dists = dists / self.height
+        dist_cov_cost = np.sqrt(np.cov(dists))
+        return dist_cov_cost
+
     def calc_cost_redistrib(
         self, theta, total_length, grasp_point_id, pivot_point_id, cableID
     ):
@@ -639,14 +660,8 @@ class CableSimplePolicy:
         )
         grasp_length = graph.compute_length(grasp_point_id, pivot_point_id)
         # y coordinates of each node in the new graph
-        dists = np.array(
-            [
-                graph_this.get_node_coords(node)[1]
-                for node in graph_this.get_nodes()
-            ]
-        )
-        dists = dists / self.height
-        dist_cov_cost = np.sqrt(np.cov(dists))
+        dist_cov_cost = self.calc_normalized_dist_cov(graph_this)
+
         dist_cost_all = 0
         for cableid, graph in self.cg.graphs.items():
             if cableid != cableID:
@@ -881,7 +896,7 @@ class CableSimplePolicy:
         # a longer tail is less stiff, while a shorter tail is more stiff
         # use straight mode TODO magic number
         if (
-            ratio > 0.7
+            ratio > 0.6
             or (total_length - grasp_length) < self.stiff_tail_thresh
         ):
             free_end_res_point = self.get_result_point(
@@ -1023,6 +1038,7 @@ class CableSimplePolicy:
                 break
             reset_id()
             self.cg = CableGraph()
+            self.fa.goto_middle_pose()
         print("Done unweaving all cables")
         self.realsense.close()
 

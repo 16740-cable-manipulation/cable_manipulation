@@ -73,7 +73,16 @@ class MyFranka:
             ),
             "t": np.array([0.395, 0.0, 0.57]),
         }
-        self.goto_pose(home_pose, sleep=self.time_per_move, use_impedance=False)
+        self.goto_pose(home_pose, sleep=3.5, use_impedance=False)
+
+    def goto_middle_pose(self):
+        home_pose = {
+            "R": np.array(
+                [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
+            ),
+            "t": np.array([0.395, 0.0, 0.25]),
+        }
+        self.goto_pose(home_pose, sleep=3.5, use_impedance=False)
 
     def get_pose(self):
         """Pose of tip of ee in world frame"""
@@ -179,11 +188,14 @@ class MyFranka:
                 if gripper_width > 0.002:
                     break
                 print("REGRASP!!")
-                p["t"] += [0, 0, -0.003]
+                p["t"] += [0, 0, -0.006]
                 num_attemp += 1
 
         elif manipulate_gripper == GRIPPER_UNGRASP:
             self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
+            # push surrounding cables
+            self.fa.open_gripper()
+            time.sleep(1.5)
             self.open_gripper()
         else:
             self.goto_pose(p, sleep=self.time_per_move, use_impedance=False)
@@ -211,7 +223,7 @@ class MyFranka:
         # move to a point above action.place_3d, with height z
         print("place_3d: ", action.place_3d)
         self.goto_point_and_vec(
-            action.place_3d + [0, 0, -action.z * 0.5],
+            action.place_3d + [0, 0, -action.z * 0.7],
             action.place_vec_3d,
             tf_w_ee=tf_w_ee,
             manipulate_gripper=GRIPPER_NONE,
